@@ -63,12 +63,17 @@ export default function VoiceRecorder({ onResults }: VoiceRecorderProps) {
     recognition.onstart = () => setStatus("listening");
 
     recognition.onresult = (event: any) => {
-      // event.resultIndex = index of the first NEW result this firing
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const transcript: string = event.results[i][0].transcript.trim();
-        if (transcript.toLowerCase().includes("done")) {
+        const lower = transcript.toLowerCase();
+        const doneIdx = lower.indexOf("done");
+
+        if (doneIdx !== -1) {
+          // Capture anything said before "done" in the same utterance
+          const before = transcript.slice(0, doneIdx).trim();
+          if (before) heard.push(before);
           recognition.stop();
-          const unique = heard.filter((v, i, arr) => arr.indexOf(v) === i);
+          const unique = heard.filter((v, idx, arr) => arr.indexOf(v) === idx && v.trim() !== "");
           sendTerms(unique);
           return;
         }
