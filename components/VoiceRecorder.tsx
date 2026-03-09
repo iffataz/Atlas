@@ -65,7 +65,7 @@ export default function VoiceRecorder({ onResults }: VoiceRecorderProps) {
         const transcript: string = event.results[i][0].transcript.trim();
         if (transcript.toLowerCase().includes("done")) {
           recognition.stop();
-          const unique = [...new Set(heard)];
+          const unique = heard.filter((v, i, arr) => arr.indexOf(v) === i);
           sendTerms(unique);
           return;
         }
