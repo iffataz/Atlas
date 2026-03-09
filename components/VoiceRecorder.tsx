@@ -60,15 +60,12 @@ export default function VoiceRecorder({ onResults }: VoiceRecorderProps) {
     recognition.onstart = () => setStatus("listening");
 
     recognition.onresult = (event: any) => {
-      for (let i = 0; i < event.results.length; i++) {
+      // event.resultIndex = index of the first NEW result this firing
+      for (let i = event.resultIndex; i < event.results.length; i++) {
         const transcript: string = event.results[i][0].transcript.trim();
         if (transcript.toLowerCase().includes("done")) {
           recognition.stop();
-          // Deduplicate and exclude "done" utterances
-          const unique = heard.filter(
-            (v, idx, arr) =>
-              arr.indexOf(v) === idx && !v.toLowerCase().includes("done")
-          );
+          const unique = [...new Set(heard)];
           sendTerms(unique);
           return;
         }
@@ -79,10 +76,6 @@ export default function VoiceRecorder({ onResults }: VoiceRecorderProps) {
     recognition.onerror = (event: any) => {
       console.error("Recognition error:", event.error);
       setStatus("idle");
-    };
-
-    recognition.onspeechend = () => {
-      recognition.stop();
     };
 
     recognition.start();
