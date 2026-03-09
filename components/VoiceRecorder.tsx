@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { IProduct } from "@/lib/models/Product";
 
 export interface SearchResult {
@@ -16,11 +16,14 @@ type Status = "idle" | "listening" | "processing" | "done";
 
 export default function VoiceRecorder({ onResults }: VoiceRecorderProps) {
   const [status, setStatus] = useState<Status>("idle");
+  const [speechAvailable, setSpeechAvailable] = useState(false);
   const recognitionRef = useRef<any>(null);
 
-  const speechAvailable =
-    typeof window !== "undefined" &&
-    ("SpeechRecognition" in window || "webkitSpeechRecognition" in window);
+  useEffect(() => {
+    setSpeechAvailable(
+      "SpeechRecognition" in window || "webkitSpeechRecognition" in window
+    );
+  }, []);
 
   async function sendTerms(terms: string[]) {
     setStatus("processing");
@@ -87,17 +90,15 @@ export default function VoiceRecorder({ onResults }: VoiceRecorderProps) {
     onResults([]);
   }
 
-  if (!speechAvailable && typeof window !== "undefined") {
-    return (
-      <p className="text-red-300 mt-4">
-        Speech recognition requires Chrome or Edge.
-      </p>
-    );
-  }
-
   return (
     <div className="flex flex-col items-center gap-4 mt-6">
-      {status === "idle" && (
+      {status === "idle" && !speechAvailable && (
+        <p className="text-red-300 mt-4">
+          Speech recognition requires Chrome or Edge.
+        </p>
+      )}
+
+      {status === "idle" && speechAvailable && (
         <button
           onClick={startListening}
           className="bg-atlas hover:bg-purple-700 text-white font-semibold py-3 px-8 rounded-full text-lg transition-colors shadow-lg"
