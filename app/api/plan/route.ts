@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
 import MealPlan from "@/lib/models/MealPlan";
-import { geminiFlash, buildMealPlanPrompt } from "@/lib/gemini";
+import { generateMealPlan } from "@/lib/llm";
 import { aggregateIngredients } from "@/lib/aggregateIngredients";
 
 export const runtime = "nodejs";
@@ -16,23 +16,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Preferences are required." }, { status: 400 });
     }
 
-    const prompt = buildMealPlanPrompt(preferences, servings);
-    const result = await geminiFlash.generateContent(prompt);
-    const raw = result.response.text();
-
-    let parsed: { days: unknown[] };
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      return NextResponse.json(
-        { error: "Gemini returned invalid JSON. Please try again." },
-        { status: 502 }
-      );
-    }
+    const parsed = await generateMealPlan(preferences, servings);
 
     if (!Array.isArray(parsed.days) || parsed.days.length !== 7) {
       return NextResponse.json(
-        { error: "Unexpected meal plan structure from Gemini. Please try again." },
+        { error: "Unexpected meal plan structure. Please try again." },
         { status: 502 }
       );
     }

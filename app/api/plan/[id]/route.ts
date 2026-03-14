@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
 import MealPlan from "@/lib/models/MealPlan";
-import { geminiFlash, buildRefinementPrompt } from "@/lib/gemini";
+import { refineMealPlan } from "@/lib/llm";
 import { aggregateIngredients } from "@/lib/aggregateIngredients";
 
 export const runtime = "nodejs";
@@ -41,41 +41,18 @@ export async function POST(
       return NextResponse.json({ error: "Plan not found." }, { status: 404 });
     }
 
-    const prompt = buildRefinementPrompt(
-      { days: plan.days },
-      instruction,
-      plan.servings
-    );
-    const result = await geminiFlash.generateContent(prompt);
-    const raw = result.response.text();
+    // Groq returns all 7 days — no merge logic needed
+    const parsed = await refineMealPlan({ days: plan.days }, instruction, plan.servings);
 
-    let parsed: { days: unknown[] };
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
+    if (!Array.isArray(parsed.days) || parsed.days.length !== 7) {
       return NextResponse.json(
-        { error: "Gemini returned invalid JSON. Please try again." },
+        { error: "Unexpected refinement structure. Please try again." },
         { status: 502 }
       );
     }
 
-    if (!Array.isArray(parsed.days)) {
-      return NextResponse.json(
-        { error: "Unexpected refinement structure from Gemini." },
-        { status: 502 }
-      );
-    }
-
-    // Merge modified days into existing plan
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const updatedDays = plan.days.map((existingDay: any) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const modifiedDay = (parsed.days as any[]).find(
-        (d) => d.day?.toLowerCase() === existingDay.day?.toLowerCase()
-      );
-      return modifiedDay ?? existingDay;
-    });
-
+    const updatedDays = parsed.days as any[];
     const shoppingList = aggregateIngredients(updatedDays);
     plan.days = updatedDays;
     plan.shoppingList = shoppingList;
