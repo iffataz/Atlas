@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Image from "next/image";
 import VoiceRecorder, { VoiceStatus } from "@/components/VoiceRecorder";
 import MealPlanGrid from "@/components/MealPlanGrid";
@@ -25,6 +25,7 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<Tab>("plan");
   const [error, setError] = useState<string | null>(null);
   const [servings, setServings] = useState(2);
+  const planSectionRef = useRef<HTMLElement>(null);
 
   async function handlePreferences(transcript: string) {
     setVoiceStatus("processing");
@@ -42,6 +43,9 @@ export default function Home() {
       setPlan({ planId: data.planId, days: data.days, shoppingList: data.shoppingList, preferences: transcript });
       setAppState("ready");
       setVoiceStatus("idle");
+      setTimeout(() => {
+        planSectionRef.current?.scrollIntoView({ behavior: "smooth" });
+      }, 100);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
       setAppState("idle");
@@ -82,13 +86,16 @@ export default function Home() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to load plan.");
       setPlan({
-        planId: data._id,
+        planId: String(data._id),
         days: data.days,
         shoppingList: data.shoppingList,
         preferences: data.preferences,
       });
       setServings(data.servings);
       setAppState("ready");
+      setTimeout(() => {
+        planSectionRef.current?.scrollIntoView({ behavior: "smooth" });
+      }, 100);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
       setAppState("idle");
@@ -217,7 +224,7 @@ export default function Home() {
 
       {/* Plan + Shopping List */}
       {plan && appState === "ready" && (
-        <section className="bg-gray-900 py-12 px-6">
+        <section ref={planSectionRef} className="bg-gray-900 py-12 px-6">
           <div className="container mx-auto">
             {/* Tabs */}
             <div className="flex gap-1 mb-8 bg-white/5 rounded-xl p-1 w-fit">
