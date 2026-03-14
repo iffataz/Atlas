@@ -9,70 +9,12 @@ function getGroq(): Groq {
 
 const MODEL = "llama-3.3-70b-versatile";
 
-// JSON Schema for Groq strict mode — guarantees schema-compliant response
-const MEAL_PLAN_JSON_SCHEMA = {
-  type: "object",
-  properties: {
-    days: {
-      type: "array",
-      items: {
-        type: "object",
-        properties: {
-          day:       { type: "string" },
-          breakfast: { $ref: "#/$defs/meal" },
-          lunch:     { $ref: "#/$defs/meal" },
-          dinner:    { $ref: "#/$defs/meal" },
-        },
-        required: ["day", "breakfast", "lunch", "dinner"],
-        additionalProperties: false,
-      },
-    },
-  },
-  required: ["days"],
-  additionalProperties: false,
-  $defs: {
-    meal: {
-      type: "object",
-      properties: {
-        name:        { type: "string" },
-        description: { type: "string" },
-        ingredients: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: {
-              name:     { type: "string" },
-              quantity: { type: "number" },
-              unit:     { type: "string" },
-              category: {
-                type: "string",
-                enum: ["Produce", "Proteins", "Dairy", "Grains", "Pantry", "Frozen", "Other"],
-              },
-            },
-            required: ["name", "quantity", "unit", "category"],
-            additionalProperties: false,
-          },
-        },
-      },
-      required: ["name", "description", "ingredients"],
-      additionalProperties: false,
-    },
-  },
-};
-
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function callGroq(prompt: string): Promise<any> {
   const completion = await getGroq().chat.completions.create({
     model: MODEL,
     messages: [{ role: "user", content: prompt }],
-    response_format: {
-      type: "json_schema",
-      json_schema: {
-        name: "meal_plan",
-        schema: MEAL_PLAN_JSON_SCHEMA,
-        strict: true,
-      },
-    },
+    response_format: { type: "json_object" },
   });
   return JSON.parse(completion.choices[0].message.content!);
 }
@@ -94,6 +36,24 @@ function buildMealPlanPrompt(preferences: string, servings: number): string {
 
 User preferences: "${preferences}"
 Servings per meal: ${servings}
+
+Return ONLY valid JSON matching this exact structure:
+{
+  "days": [
+    {
+      "day": "Monday",
+      "breakfast": {
+        "name": "Meal name",
+        "description": "One sentence description",
+        "ingredients": [
+          { "name": "ingredient name", "quantity": 2, "unit": "cups", "category": "Produce" }
+        ]
+      },
+      "lunch": { "name": "...", "description": "...", "ingredients": [...] },
+      "dinner": { "name": "...", "description": "...", "ingredients": [...] }
+    }
+  ]
+}
 
 Rules:
 - Include exactly 7 days: Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday
