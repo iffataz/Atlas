@@ -1,4 +1,5 @@
 import { IDayPlan, IIngredient, IShoppingItem } from "./models/MealPlan";
+import { convertToMetric, roundForShopping } from "./unitConversion";
 
 // Normalize ingredient name: lowercase, trim, basic singularization
 function normalizeName(name: string): string {
@@ -39,10 +40,16 @@ export function aggregateIngredients(days: IDayPlan[]): IShoppingItem[] {
     }
   }
 
+  // Convert cooking units (cup, tbsp, tsp) to metric before grouping
+  const converted = allIngredients.map((ing) => {
+    const { quantity, unit } = convertToMetric(ing.quantity, ing.unit);
+    return { ...ing, quantity, unit };
+  });
+
   // Group by (normalizedName, unit)
   const grouped = new Map<string, IShoppingItem>();
 
-  for (const ing of allIngredients) {
+  for (const ing of converted) {
     const normalizedName = normalizeName(ing.name);
     const key = `${normalizedName}||${ing.unit.toLowerCase()}`;
 
@@ -70,7 +77,13 @@ export function aggregateIngredients(days: IDayPlan[]): IShoppingItem[] {
     Other: 6,
   };
 
-  return Array.from(grouped.values()).sort((a, b) => {
+  // Apply shopping-friendly rounding and scale-up (ml→L, g→kg)
+  const rounded = Array.from(grouped.values()).map((item) => {
+    const { quantity, unit } = roundForShopping(item.totalQuantity, item.unit);
+    return { ...item, totalQuantity: quantity, unit };
+  });
+
+  return rounded.sort((a, b) => {
     const catDiff =
       (categoryOrder[a.category] ?? 6) - (categoryOrder[b.category] ?? 6);
     if (catDiff !== 0) return catDiff;
