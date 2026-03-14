@@ -5,6 +5,7 @@ import Image from "next/image";
 import VoiceRecorder, { VoiceStatus } from "@/components/VoiceRecorder";
 import MealPlanGrid from "@/components/MealPlanGrid";
 import ShoppingList from "@/components/ShoppingList";
+import PlanHistory from "@/components/PlanHistory";
 import { IDayPlan, IShoppingItem } from "@/lib/models/MealPlan";
 
 type AppState = "idle" | "generating" | "refining" | "ready";
@@ -72,6 +73,28 @@ export default function Home() {
     }
   }
 
+  async function loadPlan(planId: string) {
+    setAppState("generating");
+    setError(null);
+
+    try {
+      const res = await fetch(`/api/plan/${planId}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to load plan.");
+      setPlan({
+        planId: data._id,
+        days: data.days,
+        shoppingList: data.shoppingList,
+        preferences: data.preferences,
+      });
+      setServings(data.servings);
+      setAppState("ready");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Something went wrong.");
+      setAppState("idle");
+    }
+  }
+
   function handleReset() {
     setPlan(null);
     setAppState("idle");
@@ -126,6 +149,8 @@ export default function Home() {
                 <p className="text-gray-400 text-sm">
                   e.g. &ldquo;I&apos;m vegetarian, love Asian food, keep it budget-friendly&rdquo;
                 </p>
+
+                <PlanHistory onSelectPlan={loadPlan} />
               </div>
             )}
 
