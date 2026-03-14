@@ -7,14 +7,68 @@ function getGroq(): Groq {
   return _groq;
 }
 
-const MODEL = "llama-3.3-70b-versatile";
+const MODEL = "meta-llama/llama-4-scout-17b-16e-instruct";
+
+// JSON Schema — Llama 4 Scout supports json_schema response format (best-effort)
+const MEAL_PLAN_SCHEMA = {
+  type: "object" as const,
+  properties: {
+    days: {
+      type: "array" as const,
+      items: {
+        type: "object" as const,
+        properties: {
+          day:       { type: "string" as const },
+          breakfast: { $ref: "#/$defs/meal" },
+          lunch:     { $ref: "#/$defs/meal" },
+          dinner:    { $ref: "#/$defs/meal" },
+        },
+        required: ["day", "breakfast", "lunch", "dinner"],
+      },
+    },
+  },
+  required: ["days"],
+  $defs: {
+    meal: {
+      type: "object" as const,
+      properties: {
+        name:        { type: "string" as const },
+        description: { type: "string" as const },
+        ingredients: {
+          type: "array" as const,
+          items: {
+            type: "object" as const,
+            properties: {
+              name:     { type: "string" as const },
+              quantity: { type: "number" as const },
+              unit:     { type: "string" as const },
+              category: {
+                type: "string" as const,
+                enum: ["Produce", "Proteins", "Dairy", "Grains", "Pantry", "Frozen", "Other"],
+              },
+            },
+            required: ["name", "quantity", "unit", "category"],
+          },
+        },
+      },
+      required: ["name", "description", "ingredients"],
+    },
+  },
+};
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function callGroq(prompt: string): Promise<any> {
   const completion = await getGroq().chat.completions.create({
     model: MODEL,
     messages: [{ role: "user", content: prompt }],
-    response_format: { type: "json_object" },
+    max_tokens: 8192,
+    response_format: {
+      type: "json_schema",
+      json_schema: {
+        name: "meal_plan",
+        schema: MEAL_PLAN_SCHEMA,
+      },
+    },
   });
   return JSON.parse(completion.choices[0].message.content!);
 }
