@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { IDayPlan, IMeal, IIngredient } from "@/lib/models/MealPlan";
+import { metricHint } from "@/lib/unitConversion";
 
 interface MealPlanGridProps {
   days: IDayPlan[];
@@ -55,6 +56,9 @@ function IngredientDrawer({ meal }: { meal: IMeal }) {
             <span className="text-gray-300 capitalize">{ing.name}</span>
             <span className="text-gray-400">
               {ing.quantity} {ing.unit}
+              {metricHint(ing.quantity, ing.unit) && (
+                <span className="text-gray-500 ml-1">{metricHint(ing.quantity, ing.unit)}</span>
+              )}
             </span>
           </li>
         ))}

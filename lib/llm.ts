@@ -100,7 +100,7 @@ Return ONLY valid JSON matching this exact structure:
         "name": "Meal name",
         "description": "One sentence description",
         "ingredients": [
-          { "name": "ingredient name", "quantity": 200, "unit": "g", "category": "Produce" }
+          { "name": "ingredient name", "quantity": 2, "unit": "cup", "category": "Produce" }
         ]
       },
       "lunch": { "name": "...", "description": "...", "ingredients": [...] },
@@ -113,7 +113,7 @@ Rules:
 - Include exactly 7 days: Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday
 - Scale ingredient quantities for ${servings} serving(s)
 - Ingredient "name" must be singular and lowercase (e.g. "egg" not "eggs", "tomato" not "tomatoes")
-- "unit" must be a purchasable/metric unit: g, kg, ml, L, piece, slice, clove, bunch, can, or "whole" — do NOT use cup, tbsp, or tsp; convert to ml or g instead
+- "unit" must be one of: g, kg, ml, L, cup, tbsp, tsp, piece, slice, clove, bunch, can, or "whole"
 - "category" must be exactly one of: Produce, Proteins, Dairy, Grains, Pantry, Frozen, Other
 - "quantity" must be a number (not a string)
 - Vary cuisines and ingredients across the week for nutritional balance
@@ -135,7 +135,7 @@ ${JSON.stringify(existingPlan, null, 2)}
 
 Return the complete 7-day meal plan with the requested changes applied. Keep all unaffected days and meals identical to the current plan. Follow the same rules:
 - Ingredient "name": singular lowercase
-- "unit": g, kg, ml, L, piece, slice, clove, bunch, can, or "whole" — never cup, tbsp, or tsp
+- "unit": g, kg, ml, L, cup, tbsp, tsp, piece, slice, clove, bunch, can, or "whole"
 - "category": one of Produce, Proteins, Dairy, Grains, Pantry, Frozen, Other
 - "quantity": a number`;
 }

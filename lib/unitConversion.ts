@@ -25,6 +25,15 @@ export function convertToMetric(
   return { quantity, unit };
 }
 
+/** Return a metric string like "(500 ml)" if the unit is a cooking unit, or null if already metric. */
+export function metricHint(quantity: number, unit: string): string | null {
+  const entry = COOKING_TO_METRIC[unit.toLowerCase().trim()];
+  if (!entry) return null;
+  const converted = quantity * entry.multiplier;
+  const rounded = roundForShopping(converted, entry.unit);
+  return `(${rounded.quantity} ${rounded.unit})`;
+}
+
 /** Scale up (ml→L, g→kg) and apply shopping-friendly rounding. */
 export function roundForShopping(
   quantity: number,
