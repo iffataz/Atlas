@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Atlas",
-  description: "Your personal voice grocery assistant",
+  description: "Your AI-powered meal planning assistant",
 };
 
 export default function RootLayout({

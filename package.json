@@ -1,7 +1,7 @@
 {
   "name": "atlas",
   "version": "1.0.0",
-  "description": "Voice-assisted grocery assistant",
+  "description": "Voice-assisted AI meal planning app",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
