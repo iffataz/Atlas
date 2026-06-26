@@ -66,7 +66,7 @@ export default function PlanHistory({ onSelectPlan }: PlanHistoryProps) {
                 {timeAgo(plan.createdAt)}
               </span>
               <div className="flex-1 min-w-0 text-right">
-                <p className="text-ink text-sm truncate group-hover:text-ink transition-colors">
+                <p className="text-dim text-sm truncate group-hover:text-ink transition-colors">
                   &ldquo;{plan.preferences}&rdquo;
                 </p>
                 <span className="inline-block mt-1 text-xs px-2 py-0.5 rounded-full bg-atlas/20 text-atlas">
