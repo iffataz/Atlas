@@ -38,8 +38,8 @@ export default function PlanHistory({ onSelectPlan }: PlanHistoryProps) {
     return (
       <div className="w-full mt-8">
         <div className="flex items-center gap-2 animate-pulse">
-          <div className="h-3 w-3 bg-gray-600 rounded-full" />
-          <div className="h-3 w-24 bg-gray-700 rounded" />
+          <div className="h-3 w-3 bg-dim/30 rounded-full" />
+          <div className="h-3 w-24 bg-dim/20 rounded" />
         </div>
       </div>
     );
@@ -49,7 +49,7 @@ export default function PlanHistory({ onSelectPlan }: PlanHistoryProps) {
 
   return (
     <div className="w-full mt-10">
-      <h3 className="text-gray-500 uppercase tracking-wider text-xs font-semibold mb-3 text-right">
+      <h3 className="text-dim uppercase tracking-widest text-[10px] font-medium mb-3 text-center">
         Recent Plans
       </h3>
       <div className="space-y-2">
@@ -57,16 +57,16 @@ export default function PlanHistory({ onSelectPlan }: PlanHistoryProps) {
           <button
             key={plan._id}
             onClick={() => onSelectPlan(plan._id)}
-            className="w-full text-right p-3 rounded-xl border border-white/10 bg-white/5
-                       hover:bg-white/10 hover:border-atlas/50
+            className="w-full text-left p-3 rounded-xl border border-white/[0.07] bg-void
+                       hover:bg-white/[0.03] hover:border-atlas/40
                        transition-all cursor-pointer group"
           >
             <div className="flex items-start justify-between gap-3">
-              <span className="text-gray-500 text-xs shrink-0 pt-0.5">
+              <span className="text-dim text-xs shrink-0 pt-0.5">
                 {timeAgo(plan.createdAt)}
               </span>
               <div className="flex-1 min-w-0 text-right">
-                <p className="text-gray-200 text-sm truncate group-hover:text-white transition-colors">
+                <p className="text-ink text-sm truncate group-hover:text-ink transition-colors">
                   &ldquo;{plan.preferences}&rdquo;
                 </p>
                 <span className="inline-block mt-1 text-xs px-2 py-0.5 rounded-full bg-atlas/20 text-atlas">

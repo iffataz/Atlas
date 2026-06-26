@@ -34,30 +34,30 @@ function MealCell({
       onClick={onClick}
       className={`w-full text-left p-3 rounded-lg border transition-all ${
         selected
-          ? "border-atlas bg-purple-900/40 shadow-md"
-          : "border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20"
+          ? "border-atlas bg-void"
+          : "border-white/[0.07] bg-void hover:bg-white/[0.03] hover:border-white/[0.12]"
       }`}
     >
-      <p className="text-white font-medium text-sm leading-snug">{meal.name}</p>
-      <p className="text-gray-400 text-xs mt-1 line-clamp-2">{meal.description}</p>
+      <p className="text-ink font-medium text-sm leading-snug">{meal.name}</p>
+      <p className="text-dim text-xs mt-1 line-clamp-2">{meal.description}</p>
     </button>
   );
 }
 
 function IngredientDrawer({ meal }: { meal: IMeal }) {
   return (
-    <div className="bg-white/5 border border-white/10 rounded-xl p-4 mt-3">
-      <h4 className="text-white font-semibold text-sm mb-3">
+    <div className="bg-void border border-white/[0.07] rounded-xl p-3 mt-3">
+      <h4 className="text-ink font-medium text-sm mb-3">
         Ingredients for {meal.name}
       </h4>
       <ul className="space-y-1">
         {meal.ingredients.map((ing: IIngredient, i: number) => (
           <li key={i} className="flex justify-between text-sm">
-            <span className="text-gray-300 capitalize">{ing.name}</span>
-            <span className="text-gray-400">
+            <span className="text-dim capitalize">{ing.name}</span>
+            <span className="text-dim">
               {ing.quantity} {ing.unit}
               {metricHint(ing.quantity, ing.unit) && (
-                <span className="text-gray-500 ml-1">{metricHint(ing.quantity, ing.unit)}</span>
+                <span className="text-dim/60 ml-1">{metricHint(ing.quantity, ing.unit)}</span>
               )}
             </span>
           </li>
@@ -81,7 +81,10 @@ export default function MealPlanGrid({ days }: MealPlanGridProps) {
       {/* Header row */}
       <div className="grid grid-cols-7 gap-2 mb-2 min-w-[700px]">
         {days.map((d) => (
-          <div key={d.day} className="text-center text-xs font-semibold text-atlas uppercase tracking-wider">
+          <div
+            key={d.day}
+            className="text-center text-[10px] font-medium text-atlas uppercase tracking-widest"
+          >
             {d.day.slice(0, 3)}
           </div>
         ))}
@@ -90,7 +93,7 @@ export default function MealPlanGrid({ days }: MealPlanGridProps) {
       {/* Meal rows */}
       {MEAL_TYPES.map((mealType) => (
         <div key={mealType} className="mb-4 min-w-[700px]">
-          <p className="text-gray-500 text-xs uppercase tracking-wider mb-1 pl-1">
+          <p className="text-[10px] font-medium text-dim uppercase tracking-widest mb-1 pl-1">
             {MEAL_LABELS[mealType]}
           </p>
           <div className="grid grid-cols-7 gap-2">

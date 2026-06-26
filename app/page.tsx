@@ -113,7 +113,7 @@ export default function Home() {
   const isLoading = appState === "generating" || appState === "refining";
 
   return (
-    <main className="min-h-screen bg-gray-950">
+    <main className="min-h-screen bg-void">
       {/* Hero */}
       <section className="relative min-h-screen bg-void flex items-center justify-center">
         {/* Radial purple bloom */}
@@ -228,18 +228,18 @@ export default function Home() {
 
       {/* Plan + Shopping List */}
       {plan && appState === "ready" && (
-        <section ref={planSectionRef} className="bg-gray-900 py-12 px-6">
+        <section ref={planSectionRef} className="bg-surface py-12 px-6">
           <div className="container mx-auto">
             {/* Tabs */}
-            <div className="flex gap-1 mb-8 bg-white/5 rounded-xl p-1 w-fit">
+            <div className="flex gap-1 mb-8">
               {(["plan", "shopping"] as Tab[]).map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
-                  className={`px-6 py-2 rounded-lg text-sm font-semibold transition-all capitalize ${
+                  className={`px-5 py-1.5 rounded-full text-sm font-medium transition-all capitalize ${
                     activeTab === tab
-                      ? "bg-atlas text-white shadow-md"
-                      : "text-gray-400 hover:text-white"
+                      ? "bg-atlas text-white"
+                      : "text-dim hover:text-ink"
                   }`}
                 >
                   {tab === "plan" ? "Meal Plan" : "Shopping List"}
