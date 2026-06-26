@@ -71,39 +71,48 @@ export default function VoiceRecorder({
     recognitionRef.current?.stop();
   }
 
-  const isActive = status === "listening" || status === "processing" || status === "refining";
+  const isActive =
+    status === "listening" || status === "processing" || status === "refining";
 
   return (
     <div className="flex flex-col items-center gap-4">
       {!speechAvailable && (
-        <p className="text-red-300 text-sm">
+        <p className="text-red-400 text-sm">
           Speech recognition requires Chrome or Edge.
         </p>
       )}
 
       {speechAvailable && !isActive && (
-        <button
-          onClick={startListening}
-          disabled={status === "done"}
-          className="bg-atlas hover:bg-purple-700 disabled:opacity-50 text-white font-semibold py-3 px-8 rounded-full text-lg transition-colors shadow-lg flex items-center gap-2"
-        >
-          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M12 1a4 4 0 0 1 4 4v7a4 4 0 0 1-8 0V5a4 4 0 0 1 4-4zm0 2a2 2 0 0 0-2 2v7a2 2 0 0 0 4 0V5a2 2 0 0 0-2-2zm-7 9h2a5 5 0 0 0 10 0h2a7 7 0 0 1-6 6.92V21h-4v-2.08A7 7 0 0 1 5 12z" />
-          </svg>
-          {buttonLabel}
-        </button>
+        <div className="flex flex-col items-center gap-2">
+          <button
+            onClick={startListening}
+            disabled={status === "done"}
+            className="relative w-16 h-16 rounded-full border-2 border-atlas flex items-center justify-center hover:bg-atlas/10 disabled:opacity-40 transition-colors"
+          >
+            {/* Breathing ring */}
+            <span className="absolute inset-0 rounded-full border-2 border-atlas animate-breathe pointer-events-none" />
+            <svg
+              className="w-6 h-6 text-ink"
+              fill="currentColor"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path d="M12 1a4 4 0 0 1 4 4v7a4 4 0 0 1-8 0V5a4 4 0 0 1 4-4zm0 2a2 2 0 0 0-2 2v7a2 2 0 0 0 4 0V5a2 2 0 0 0-2-2zm-7 9h2a5 5 0 0 0 10 0h2a7 7 0 0 1-6 6.92V21h-4v-2.08A7 7 0 0 1 5 12z" />
+            </svg>
+          </button>
+          <span className="text-dim text-sm">{buttonLabel}</span>
+        </div>
       )}
 
       {status === "listening" && (
         <div className="flex flex-col items-center gap-3">
-          <div className="flex items-center gap-2">
+          <div className="w-16 h-16 rounded-full border-2 border-red-500 flex items-center justify-center">
             <span className="animate-pulse w-3 h-3 bg-red-500 rounded-full" />
-            <span className="text-white font-medium">Listening...</span>
           </div>
-          <p className="text-gray-300 text-sm text-center max-w-xs">{listeningHint}</p>
+          <p className="text-dim text-sm text-center max-w-xs">{listeningHint}</p>
           <button
             onClick={stop}
-            className="text-gray-400 underline text-sm hover:text-white"
+            className="text-dim underline text-sm hover:text-ink transition-colors"
           >
             Cancel
           </button>
@@ -111,7 +120,7 @@ export default function VoiceRecorder({
       )}
 
       {(status === "processing" || status === "refining") && (
-        <div className="flex items-center gap-3 text-white">
+        <div className="flex items-center gap-3 text-ink">
           <svg
             className="animate-spin h-5 w-5"
             viewBox="0 0 24 24"
@@ -121,7 +130,7 @@ export default function VoiceRecorder({
             <circle className="opacity-25" cx="12" cy="12" r="10" strokeWidth="4" />
             <path className="opacity-75" d="M4 12a8 8 0 018-8v8z" strokeWidth="4" />
           </svg>
-          <span>{processingLabel}</span>
+          <span className="text-sm">{processingLabel}</span>
         </div>
       )}
     </div>
