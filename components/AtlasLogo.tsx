@@ -11,14 +11,14 @@ export default function AtlasLogo() {
       >
         {/* Plate */}
         <circle cx="18" cy="18" r="15" fill="#7447ae" />
-        {/* Fork tines */}
-        <rect x="13" y="8" width="2" height="8" rx="1" fill="white" />
-        <rect x="17" y="8" width="2" height="8" rx="1" fill="white" />
-        <rect x="21" y="8" width="2" height="8" rx="1" fill="white" />
-        {/* Neck */}
-        <rect x="14" y="15" width="8" height="3" fill="white" />
+        {/* Tines — short (5px), leaving most height for handle */}
+        <rect x="11" y="7" width="2.5" height="5" rx="1" fill="white" />
+        <rect x="16.75" y="7" width="2.5" height="5" rx="1" fill="white" />
+        <rect x="22.5" y="7" width="2.5" height="5" rx="1" fill="white" />
+        {/* Yoke — tapers from full tine span down to handle width */}
+        <polygon points="11,11 25,11 20,18 16,18" fill="white" />
         {/* Handle */}
-        <rect x="16.5" y="18" width="3" height="11" rx="1.5" fill="white" />
+        <rect x="16.5" y="17" width="3" height="13" rx="1.5" fill="white" />
       </svg>
       <span className="font-display font-light tracking-widest text-xl text-ink select-none">
         atlas
