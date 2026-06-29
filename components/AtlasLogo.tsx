@@ -12,22 +12,21 @@ export default function AtlasLogo() {
         <circle cx="18" cy="18" r="15" fill="#7447ae" />
 
         {/*
-          Fork drawn upright in local space, centered at origin.
-          rotate(45) tilts tines toward upper-right to match reference.
-          All points verified to stay within r=15 after rotation.
+          Fork in local space centered at origin, rotated 45°.
+          3 tines, flat tips (no rx), longer handle.
+          All corners verified within r=15 after rotation.
         */}
         <g transform="translate(18,18) rotate(45)" fill="white">
-          {/* 4 tines — rounded tips, symmetric about x=0 */}
-          <rect x="-4.5" y="-11" width="1.6" height="8" rx="0.8" />
-          <rect x="-1.9" y="-11" width="1.6" height="8" rx="0.8" />
-          <rect x="0.7"  y="-11" width="1.6" height="8" rx="0.8" />
-          <rect x="3.3"  y="-11" width="1.6" height="8" rx="0.8" />
+          {/* 3 tines — flat tips, uniform width, symmetric about x=0 */}
+          <rect x="-4.5" y="-11" width="2" height="9" />
+          <rect x="-1"   y="-11" width="2" height="9" />
+          <rect x="2.5"  y="-11" width="2" height="9" />
 
-          {/* Yoke — cubic bezier curves smoothly from tine span to handle */}
-          <path d="M -4.5 -3.5 C -4.5 1.5 -2 2.5 -1.5 2.5 L 1.5 2.5 C 2 2.5 4.5 1.5 4.5 -3.5 Z" />
+          {/* Yoke — smooth bezier from tine span to handle */}
+          <path d="M -4.5 -2.5 C -4.5 2 -2 3 -1.5 3 L 1.5 3 C 2 3 4.5 2 4.5 -2.5 Z" />
 
-          {/* Handle — tapers with rounded ends */}
-          <rect x="-1.5" y="2" width="3" height="10.5" rx="1.5" />
+          {/* Handle — longer stem, rounded at bottom only */}
+          <rect x="-1.5" y="2.5" width="3" height="12" rx="1.5" />
         </g>
       </svg>
 
