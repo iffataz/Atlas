@@ -8,23 +8,29 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        atlas: "#7447ae",
-        void: "#0c0c0f",
-        surface: "#161619",
-        ink: "#f0eef4",
-        dim: "#6b7280",
+        atlas: "#7447AE",
+        "atlas-light": "#E4D7F5",
+        paper: "#F2EFE9",
+        ink: "#111111",
+        muted: "#555555",
       },
       fontFamily: {
-        sans: ["var(--font-dm-sans)", "sans-serif"],
-        display: ["var(--font-cormorant)", "serif"],
+        sans: ["var(--font-space-grotesk)", "sans-serif"],
+        display: ["var(--font-archivo-black)", "sans-serif"],
+      },
+      boxShadow: {
+        "brutal-sm": "3px 3px 0 0 #111111",
+        brutal: "4px 4px 0 0 #111111",
+        "brutal-lg": "6px 6px 0 0 #111111",
+        "brutal-purple": "4px 4px 0 0 #7447AE",
       },
       animation: {
-        breathe: "breathe 2.5s ease-in-out infinite",
+        blink: "blink 1s step-end infinite",
       },
       keyframes: {
-        breathe: {
-          "0%, 100%": { opacity: "0.5", transform: "scale(1)" },
-          "50%": { opacity: "1", transform: "scale(1.08)" },
+        blink: {
+          "0%, 100%": { opacity: "1" },
+          "50%": { opacity: "0" },
         },
       },
     },

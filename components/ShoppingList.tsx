@@ -17,16 +17,6 @@ const CATEGORY_ORDER = [
   "Other",
 ];
 
-const CATEGORY_ICONS: Record<string, string> = {
-  Produce: "🥦",
-  Proteins: "🥩",
-  Dairy: "🥛",
-  Grains: "🌾",
-  Pantry: "🫙",
-  Frozen: "❄️",
-  Other: "🛒",
-};
-
 export default function ShoppingList({ items }: ShoppingListProps) {
   const [checked, setChecked] = useState<Set<string>>(new Set());
 
@@ -56,37 +46,30 @@ export default function ShoppingList({ items }: ShoppingListProps) {
   const categories = CATEGORY_ORDER.filter((c) => grouped[c]?.length);
 
   return (
-    <div className="w-full">
-      <div className="flex justify-between items-center mb-4">
-        <p className="text-dim text-sm">
-          {items.length} items · {checked.size} checked
-        </p>
+    <div className="w-full border-2 border-ink bg-white shadow-brutal">
+      <div className="flex justify-between items-center border-b-2 border-ink px-4 py-3">
+        <h3 className="font-display uppercase tracking-widest text-sm text-ink">
+          Shopping list
+        </h3>
         <button
           onClick={copyToClipboard}
-          className="text-atlas hover:text-atlas/80 text-sm font-medium flex items-center gap-1 transition-colors"
+          className="border-2 border-ink bg-white text-ink text-[10px] font-display uppercase tracking-widest px-2.5 py-1 shadow-brutal-sm hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-brutal active:translate-x-0.5 active:translate-y-0.5 active:shadow-none transition-all"
         >
-          <svg
-            className="w-4 h-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-          </svg>
           Copy list
         </button>
       </div>
 
-      <div className="space-y-5">
+      <p className="text-muted text-xs uppercase tracking-widest px-4 py-2 border-b border-ink/20">
+        {items.length} items · {checked.size} checked
+      </p>
+
+      <div className="p-4 space-y-6">
         {categories.map((cat) => (
           <div key={cat}>
-            <h4 className="text-[10px] font-medium uppercase tracking-widest text-dim mb-2 flex items-center gap-1">
-              <span>{CATEGORY_ICONS[cat]}</span>
+            <h4 className="font-display uppercase tracking-widest text-xs text-ink border-b-2 border-ink pb-1.5 mb-2">
               {cat}
             </h4>
-            <ul className="space-y-1">
+            <ul>
               {grouped[cat].map((item) => {
                 const key = `${item.name}||${item.unit}`;
                 const isChecked = checked.has(key);
@@ -94,14 +77,12 @@ export default function ShoppingList({ items }: ShoppingListProps) {
                   <li
                     key={key}
                     onClick={() => toggle(key)}
-                    className="flex items-center justify-between py-2 px-3 rounded-lg cursor-pointer hover:bg-white/[0.03] transition-colors group"
+                    className="flex items-center justify-between py-1.5 cursor-pointer group"
                   >
                     <div className="flex items-center gap-3">
                       <div
-                        className={`w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center transition-colors ${
-                          isChecked
-                            ? "bg-atlas border-atlas"
-                            : "border-dim group-hover:border-ink"
+                        className={`w-4 h-4 border-2 border-ink flex-shrink-0 flex items-center justify-center transition-colors ${
+                          isChecked ? "bg-atlas border-atlas" : "bg-white group-hover:bg-atlas-light"
                         }`}
                       >
                         {isChecked && (
@@ -122,7 +103,7 @@ export default function ShoppingList({ items }: ShoppingListProps) {
                       </div>
                       <span
                         className={`capitalize text-sm transition-colors ${
-                          isChecked ? "text-dim line-through" : "text-ink"
+                          isChecked ? "text-muted line-through" : "text-ink"
                         }`}
                       >
                         {item.name}
@@ -130,7 +111,7 @@ export default function ShoppingList({ items }: ShoppingListProps) {
                     </div>
                     <span
                       className={`text-sm transition-colors ${
-                        isChecked ? "text-dim/50" : "text-dim"
+                        isChecked ? "text-muted/50" : "text-muted"
                       }`}
                     >
                       {item.totalQuantity} {item.unit}

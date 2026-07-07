@@ -22,42 +22,58 @@ const MEAL_LABELS: Record<string, string> = {
 
 function MealCell({
   meal,
+  label,
   onClick,
   selected,
 }: {
   meal: IMeal;
+  label: string;
   onClick: () => void;
   selected: boolean;
 }) {
   return (
     <button
       onClick={onClick}
-      className={`w-full text-left p-3 rounded-lg border transition-all ${
+      className={`w-full h-full text-left p-3 border-2 border-ink transition-colors ${
         selected
-          ? "border-atlas bg-void"
-          : "border-white/[0.07] bg-void hover:bg-white/[0.03] hover:border-white/[0.12]"
+          ? "bg-atlas text-white"
+          : "bg-white hover:bg-atlas-light"
       }`}
     >
-      <p className="text-ink font-medium text-sm leading-snug">{meal.name}</p>
-      <p className="text-dim text-xs mt-1 line-clamp-2">{meal.description}</p>
+      <p
+        className={`text-[10px] font-display uppercase tracking-widest mb-1 ${
+          selected ? "text-atlas-light" : "text-atlas"
+        }`}
+      >
+        {label}
+      </p>
+      <p className={`font-medium text-sm leading-snug ${selected ? "text-white" : "text-ink"}`}>
+        {meal.name}
+      </p>
+      <p className={`text-xs mt-1 line-clamp-2 ${selected ? "text-atlas-light" : "text-muted"}`}>
+        {meal.description}
+      </p>
     </button>
   );
 }
 
 function IngredientDrawer({ meal }: { meal: IMeal }) {
   return (
-    <div className="bg-void border border-white/[0.07] rounded-xl p-3 mt-3">
-      <h4 className="text-ink font-medium text-sm mb-3">
-        Ingredients for {meal.name}
+    <div className="border-2 border-t-0 border-ink bg-white p-4">
+      <h4 className="font-display uppercase tracking-widest text-xs text-ink mb-3">
+        Ingredients — {meal.name}
       </h4>
-      <ul className="space-y-1">
+      <ul>
         {meal.ingredients.map((ing: IIngredient, i: number) => (
-          <li key={i} className="flex justify-between text-sm">
-            <span className="text-dim capitalize">{ing.name}</span>
-            <span className="text-dim">
+          <li
+            key={i}
+            className="flex justify-between text-sm py-1.5 border-b border-ink/20 last:border-b-0"
+          >
+            <span className="text-ink capitalize">{ing.name}</span>
+            <span className="text-muted">
               {ing.quantity} {ing.unit}
               {metricHint(ing.quantity, ing.unit) && (
-                <span className="text-dim/60 ml-1">{metricHint(ing.quantity, ing.unit)}</span>
+                <span className="text-muted/60 ml-1">{metricHint(ing.quantity, ing.unit)}</span>
               )}
             </span>
           </li>
@@ -77,44 +93,38 @@ export default function MealPlanGrid({ days }: MealPlanGridProps) {
   }
 
   return (
-    <div className="w-full overflow-x-auto pb-2">
-      {/* Header row */}
-      <div className="grid grid-cols-7 gap-2 mb-2 min-w-[700px]">
-        {days.map((d) => (
-          <div
-            key={d.day}
-            className="text-center text-[10px] font-medium text-atlas uppercase tracking-widest"
-          >
-            {d.day.slice(0, 3)}
-          </div>
-        ))}
-      </div>
+    <div className="w-full space-y-6">
+      {days.map((d, dayIdx) => {
+        const selectedMeal =
+          selected?.dayIdx === dayIdx
+            ? d[selected.mealType as (typeof MEAL_TYPES)[number]]
+            : null;
 
-      {/* Meal rows */}
-      {MEAL_TYPES.map((mealType) => (
-        <div key={mealType} className="mb-4 min-w-[700px]">
-          <p className="text-[10px] font-medium text-dim uppercase tracking-widest mb-1 pl-1">
-            {MEAL_LABELS[mealType]}
-          </p>
-          <div className="grid grid-cols-7 gap-2">
-            {days.map((d, dayIdx) => {
-              const meal = d[mealType];
-              const isSelected =
-                selected?.dayIdx === dayIdx && selected.mealType === mealType;
-              return (
-                <div key={d.day}>
-                  <MealCell
-                    meal={meal}
-                    onClick={() => toggle(dayIdx, mealType)}
-                    selected={isSelected}
-                  />
-                  {isSelected && <IngredientDrawer meal={meal} />}
-                </div>
-              );
-            })}
+        return (
+          <div key={d.day} className="shadow-brutal">
+            {/* Day header bar */}
+            <div className="bg-ink text-white border-2 border-ink px-4 py-2">
+              <h3 className="font-display uppercase tracking-widest text-sm">{d.day}</h3>
+            </div>
+
+            {/* Meal cells */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 -mt-0.5">
+              {MEAL_TYPES.map((mealType) => (
+                <MealCell
+                  key={mealType}
+                  meal={d[mealType]}
+                  label={MEAL_LABELS[mealType]}
+                  onClick={() => toggle(dayIdx, mealType)}
+                  selected={selected?.dayIdx === dayIdx && selected.mealType === mealType}
+                />
+              ))}
+            </div>
+
+            {/* Ingredient drawer spans the full day card */}
+            {selectedMeal && <IngredientDrawer meal={selectedMeal} />}
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

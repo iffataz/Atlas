@@ -38,8 +38,8 @@ export default function PlanHistory({ onSelectPlan }: PlanHistoryProps) {
     return (
       <div className="w-full mt-8">
         <div className="flex items-center gap-2 animate-pulse">
-          <div className="h-3 w-3 bg-dim/30 rounded-full" />
-          <div className="h-3 w-24 bg-dim/20 rounded" />
+          <div className="h-3 w-3 bg-muted/30" />
+          <div className="h-3 w-24 bg-muted/20" />
         </div>
       </div>
     );
@@ -49,27 +49,28 @@ export default function PlanHistory({ onSelectPlan }: PlanHistoryProps) {
 
   return (
     <div className="w-full mt-10">
-      <h3 className="text-dim uppercase tracking-widest text-[10px] font-medium mb-3 text-center">
-        Recent Plans
+      <h3 className="font-display uppercase tracking-widest text-xs text-ink border-b-2 border-ink pb-1.5 mb-3 text-left">
+        Recent plans
       </h3>
-      <div className="space-y-2">
+      <div className="space-y-3">
         {plans.map((plan) => (
           <button
             key={plan._id}
             onClick={() => onSelectPlan(plan._id)}
-            className="w-full text-left p-3 rounded-xl border border-white/[0.07] bg-void
-                       hover:bg-white/[0.03] hover:border-atlas/40
-                       transition-all cursor-pointer group"
+            className="w-full text-left p-3 border-2 border-ink bg-white
+                       hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-brutal
+                       active:translate-x-0.5 active:translate-y-0.5 active:shadow-none
+                       transition-all cursor-pointer"
           >
             <div className="flex items-start justify-between gap-3">
-              <span className="text-dim text-xs shrink-0 pt-0.5">
+              <span className="text-muted text-[10px] uppercase tracking-widest shrink-0 pt-1">
                 {timeAgo(plan.createdAt)}
               </span>
               <div className="flex-1 min-w-0 text-right">
-                <p className="text-dim text-sm truncate group-hover:text-ink transition-colors">
+                <p className="text-ink text-sm truncate">
                   &ldquo;{plan.preferences}&rdquo;
                 </p>
-                <span className="inline-block mt-1 text-xs px-2 py-0.5 rounded-full bg-atlas/20 text-atlas">
+                <span className="inline-block mt-1.5 text-[10px] font-display uppercase tracking-widest px-2 py-0.5 bg-atlas text-white">
                   {plan.servings} {plan.servings === 1 ? "serving" : "servings"}
                 </span>
               </div>
