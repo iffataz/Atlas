@@ -1,19 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
+import mongoose from "mongoose";
 import connectDB from "@/lib/mongodb";
-import MealPlan from "@/lib/models/MealPlan";
+import MealPlan, { IMealPlan } from "@/lib/models/MealPlan";
 import { refineMealPlan } from "@/lib/llm";
 import { aggregateIngredients } from "@/lib/aggregateIngredients";
+import { getOwner } from "@/lib/owner";
+import { limitLlmCall } from "@/lib/ratelimit";
 
 export const runtime = "nodejs";
 
+// Plans created before anonymous ownership have no ownerId and stay reachable
+// by direct link; owned plans 404 for anyone else so existence isn't leaked.
+function ownedBySomeoneElse(plan: Pick<IMealPlan, "ownerId">, ownerId: string) {
+  return Boolean(plan.ownerId) && plan.ownerId !== ownerId;
+}
+
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
+    if (!mongoose.isValidObjectId(params.id)) {
+      return NextResponse.json({ error: "Invalid plan id." }, { status: 400 });
+    }
+
     await connectDB();
     const plan = await MealPlan.findById(params.id).lean();
-    if (!plan) {
+    if (!plan || ownedBySomeoneElse(plan, getOwner(req).ownerId)) {
       return NextResponse.json({ error: "Plan not found." }, { status: 404 });
     }
     return NextResponse.json(plan);
@@ -28,6 +41,19 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
+    if (!mongoose.isValidObjectId(params.id)) {
+      return NextResponse.json({ error: "Invalid plan id." }, { status: 400 });
+    }
+
+    const owner = getOwner(req);
+    const rl = await limitLlmCall(owner.ownerId);
+    if (!rl.success) {
+      return NextResponse.json(
+        { error: "You've hit the plan-generation limit. Try again later." },
+        { status: 429, headers: { "Retry-After": String(rl.retryAfterSeconds) } }
+      );
+    }
+
     const body = await req.json();
     const instruction: string = (body.instruction ?? "").trim().slice(0, 500);
 
@@ -37,7 +63,7 @@ export async function POST(
 
     await connectDB();
     const plan = await MealPlan.findById(params.id);
-    if (!plan) {
+    if (!plan || ownedBySomeoneElse(plan, owner.ownerId)) {
       return NextResponse.json({ error: "Plan not found." }, { status: 404 });
     }
 

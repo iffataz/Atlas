@@ -12,7 +12,6 @@ export async function GET() {
     return NextResponse.json({
       status: "ok",
       connectedTo: conn.name,
-      host: conn.host,
       collection: "meal_plans",
       documentCount: planCount,
     });

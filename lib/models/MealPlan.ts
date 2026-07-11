@@ -32,6 +32,9 @@ export interface IMealPlan extends Document {
   servings: number;
   days: IDayPlan[];
   shoppingList: IShoppingItem[];
+  // Absent on plans created before anonymous ownership existed; those stay
+  // reachable by direct link but appear in no one's history.
+  ownerId?: string;
   createdAt: Date;
 }
 
@@ -66,6 +69,7 @@ const MealPlanSchema = new Schema<IMealPlan>(
   {
     preferences: { type: String, required: true },
     servings: { type: Number, required: true, default: 2 },
+    ownerId: { type: String, index: true },
     days: [DayPlanSchema],
     shoppingList: [ShoppingItemSchema],
   },
