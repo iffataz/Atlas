@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import AtlasLogo from "@/components/AtlasLogo";
 import VoiceRecorder, { VoiceStatus } from "@/components/VoiceRecorder";
@@ -36,6 +36,17 @@ export default function Home() {
     return err instanceof DOMException && err.name === "AbortError";
   }
 
+  // Scroll + move focus to the plan once generation/loading finishes, so
+  // keyboard and screen-reader users land on the new content.
+  const prevAppStateRef = useRef<AppState>("idle");
+  useEffect(() => {
+    if (appState === "ready" && prevAppStateRef.current === "generating") {
+      planSectionRef.current?.scrollIntoView({ behavior: "smooth" });
+      planSectionRef.current?.focus({ preventScroll: true });
+    }
+    prevAppStateRef.current = appState;
+  }, [appState]);
+
   async function handlePreferences(transcript: string) {
     if (inFlightRef.current) return;
     inFlightRef.current = true;
@@ -57,9 +68,6 @@ export default function Home() {
       setPlan({ planId: data.planId, days: data.days, shoppingList: data.shoppingList, preferences: transcript });
       setAppState("ready");
       setVoiceStatus("idle");
-      setTimeout(() => {
-        planSectionRef.current?.scrollIntoView({ behavior: "smooth" });
-      }, 100);
     } catch (err: unknown) {
       if (!isAbort(err)) {
         setError(err instanceof Error ? err.message : "Something went wrong.");
@@ -71,11 +79,13 @@ export default function Home() {
     }
   }
 
-  async function handleRefinement(transcript: string) {
+  async function refinePlan(instruction: string, newServings?: number) {
     if (!plan || inFlightRef.current) return;
     inFlightRef.current = true;
     const controller = new AbortController();
     abortRef.current = controller;
+    const previousServings = servings;
+    if (newServings) setServings(newServings);
     setVoiceStatus("refining");
     setAppState("refining");
     setError(null);
@@ -84,7 +94,9 @@ export default function Home() {
       const res = await fetch(`/api/plan/${plan.planId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ instruction: transcript }),
+        body: JSON.stringify(
+          newServings ? { instruction, servings: newServings } : { instruction }
+        ),
         signal: controller.signal,
       });
       const data = await res.json();
@@ -94,6 +106,7 @@ export default function Home() {
       setVoiceStatus("idle");
     } catch (err: unknown) {
       if (!isAbort(err)) {
+        if (newServings) setServings(previousServings);
         setError(err instanceof Error ? err.message : "Something went wrong.");
         setAppState("ready");
         setVoiceStatus("idle");
@@ -101,6 +114,18 @@ export default function Home() {
     } finally {
       inFlightRef.current = false;
     }
+  }
+
+  function handleRefinement(transcript: string) {
+    void refinePlan(transcript);
+  }
+
+  function handleServingsChange(n: number) {
+    if (n === servings) return;
+    void refinePlan(
+      `Change the plan to ${n} serving${n === 1 ? "" : "s"} per meal and scale all ingredient quantities accordingly. Keep every meal the same.`,
+      n
+    );
   }
 
   async function loadPlan(planId: string) {
@@ -123,9 +148,6 @@ export default function Home() {
       });
       setServings(data.servings);
       setAppState("ready");
-      setTimeout(() => {
-        planSectionRef.current?.scrollIntoView({ behavior: "smooth" });
-      }, 100);
     } catch (err: unknown) {
       if (!isAbort(err)) {
         setError(err instanceof Error ? err.message : "Something went wrong.");
@@ -173,6 +195,7 @@ export default function Home() {
               <select
                 value={servings}
                 onChange={(e) => setServings(Number(e.target.value))}
+                aria-label="Servings per meal"
                 className="border-2 border-ink bg-white text-ink text-sm font-medium uppercase tracking-wide px-3 py-1.5 cursor-pointer focus:outline-none"
               >
                 {[1, 2, 3, 4, 5, 6, 8].map((n) => (
@@ -215,6 +238,26 @@ export default function Home() {
                 listeningHint="Say what to change, e.g. 'swap Monday dinner for something Thai'."
                 processingLabel="Updating your plan"
               />
+              <div className="flex items-center gap-3">
+                <label
+                  htmlFor="servings-ready"
+                  className="text-muted text-xs font-display uppercase tracking-widest"
+                >
+                  Servings
+                </label>
+                <select
+                  id="servings-ready"
+                  value={servings}
+                  onChange={(e) => handleServingsChange(Number(e.target.value))}
+                  className="border-2 border-ink bg-white text-ink text-sm font-medium uppercase tracking-wide px-3 py-1.5 cursor-pointer focus:outline-none"
+                >
+                  {[1, 2, 3, 4, 5, 6, 8].map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <button
                 onClick={handleReset}
                 className="border-2 border-ink bg-white text-ink text-xs font-display uppercase tracking-widest px-4 py-2 shadow-brutal-sm hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-brutal active:translate-x-0.5 active:translate-y-0.5 active:shadow-none transition-all"
@@ -247,9 +290,42 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Plan + Shopping List */}
-      {plan && appState === "ready" && (
-        <section ref={planSectionRef} className="border-t-2 border-ink py-12 px-6">
+      {/* Skeleton while the first plan generates */}
+      {appState === "generating" && (
+        <section aria-hidden="true" className="border-t-2 border-ink py-12 px-6">
+          <div className="container mx-auto max-w-6xl lg:grid lg:grid-cols-3 lg:gap-8 lg:items-start">
+            <div className="lg:col-span-2 space-y-6">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="shadow-brutal animate-pulse">
+                  <div className="bg-ink border-2 border-ink px-4 py-2">
+                    <div className="h-4 w-24 bg-white/30" />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 -mt-0.5">
+                    {[0, 1, 2].map((j) => (
+                      <div key={j} className="border-2 border-ink bg-white p-3 h-28">
+                        <div className="h-2 w-16 bg-atlas/30 mb-2" />
+                        <div className="h-3 w-28 bg-ink/20 mb-1.5" />
+                        <div className="h-2 w-full bg-ink/10" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="hidden lg:block border-2 border-ink bg-white shadow-brutal h-72 animate-pulse" />
+          </div>
+        </section>
+      )}
+
+      {/* Plan + Shopping List — stays visible (dimmed) while refining */}
+      {plan && (appState === "ready" || appState === "refining") && (
+        <section
+          ref={planSectionRef}
+          tabIndex={-1}
+          className={`border-t-2 border-ink py-12 px-6 focus:outline-none transition-opacity ${
+            appState === "refining" ? "opacity-50 pointer-events-none" : ""
+          }`}
+        >
           <div className="container mx-auto max-w-6xl">
             {/* Segmented control — mobile only; desktop shows both side by side */}
             <div className="flex mb-8 lg:hidden">

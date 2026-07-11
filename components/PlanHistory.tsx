@@ -34,6 +34,16 @@ export default function PlanHistory({ onSelectPlan }: PlanHistoryProps) {
       .finally(() => setLoading(false));
   }, []);
 
+  async function deletePlan(id: string, preferences: string) {
+    if (!window.confirm(`Delete the plan "${preferences}"? This can't be undone.`)) return;
+    try {
+      const res = await fetch(`/api/plan/${id}`, { method: "DELETE" });
+      if (res.ok) setPlans((prev) => prev.filter((p) => p._id !== id));
+    } catch {
+      // Leave the row in place; user can retry.
+    }
+  }
+
   if (loading) {
     return (
       <div className="w-full mt-8">
@@ -54,28 +64,38 @@ export default function PlanHistory({ onSelectPlan }: PlanHistoryProps) {
       </h3>
       <div className="space-y-3">
         {plans.map((plan) => (
-          <button
-            key={plan._id}
-            onClick={() => onSelectPlan(plan._id)}
-            className="w-full text-left p-3 border-2 border-ink bg-white
-                       hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-brutal
-                       active:translate-x-0.5 active:translate-y-0.5 active:shadow-none
-                       transition-all cursor-pointer"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <span className="text-muted text-[10px] uppercase tracking-widest shrink-0 pt-1">
-                {timeAgo(plan.createdAt)}
-              </span>
-              <div className="flex-1 min-w-0 text-right">
-                <p className="text-ink text-sm truncate">
-                  &ldquo;{plan.preferences}&rdquo;
-                </p>
-                <span className="inline-block mt-1.5 text-[10px] font-display uppercase tracking-widest px-2 py-0.5 bg-atlas text-white">
-                  {plan.servings} {plan.servings === 1 ? "serving" : "servings"}
+          <div key={plan._id} className="relative">
+            <button
+              onClick={() => onSelectPlan(plan._id)}
+              className="w-full text-left p-3 pr-10 border-2 border-ink bg-white
+                         hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-brutal
+                         active:translate-x-0.5 active:translate-y-0.5 active:shadow-none
+                         transition-all cursor-pointer"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <span className="text-muted text-[10px] uppercase tracking-widest shrink-0 pt-1">
+                  {timeAgo(plan.createdAt)}
                 </span>
+                <div className="flex-1 min-w-0 text-right">
+                  <p className="text-ink text-sm truncate">
+                    &ldquo;{plan.preferences}&rdquo;
+                  </p>
+                  <span className="inline-block mt-1.5 text-[10px] font-display uppercase tracking-widest px-2 py-0.5 bg-atlas text-white">
+                    {plan.servings} {plan.servings === 1 ? "serving" : "servings"}
+                  </span>
+                </div>
               </div>
-            </div>
-          </button>
+            </button>
+            <button
+              onClick={() => deletePlan(plan._id, plan.preferences)}
+              aria-label={`Delete plan: ${plan.preferences}`}
+              className="absolute top-2 right-2 w-6 h-6 border-2 border-ink bg-white text-ink
+                         flex items-center justify-center text-xs leading-none
+                         hover:bg-red-100 hover:text-red-700 transition-colors"
+            >
+              ✕
+            </button>
+          </div>
         ))}
       </div>
     </div>

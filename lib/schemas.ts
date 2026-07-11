@@ -56,4 +56,6 @@ export const RefinementInputSchema = z.object({
     .trim()
     .min(1, "Instruction is required.")
     .transform((s) => s.slice(0, 500)),
+  // Present when the user changes servings after generation.
+  servings: z.coerce.number().int().min(1).max(20).optional(),
 });

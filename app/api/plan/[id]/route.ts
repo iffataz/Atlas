@@ -64,7 +64,7 @@ export async function POST(
         { status: 400 }
       );
     }
-    const { instruction } = input.data;
+    const { instruction, servings: servingsOverride } = input.data;
 
     await connectDB();
     const plan = await MealPlan.findById(params.id);
@@ -73,7 +73,8 @@ export async function POST(
     }
 
     // Groq returns all 7 days — no merge logic needed
-    const parsed = await refineMealPlan({ days: plan.days }, instruction, plan.servings);
+    const servings = servingsOverride ?? plan.servings;
+    const parsed = await refineMealPlan({ days: plan.days }, instruction, servings);
 
     const validated = MealPlanDaysSchema.safeParse(parsed);
     if (!validated.success) {
@@ -87,6 +88,7 @@ export async function POST(
     const shoppingList = aggregateIngredients(updatedDays);
     plan.days = updatedDays;
     plan.shoppingList = shoppingList;
+    plan.servings = servings;
     await plan.save();
 
     return NextResponse.json({ planId: plan._id.toString(), days: updatedDays, shoppingList });
@@ -99,5 +101,30 @@ export async function POST(
       );
     }
     return NextResponse.json({ error: "Failed to refine meal plan." }, { status: 500 });
+  }
+}
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    if (!mongoose.isValidObjectId(params.id)) {
+      return NextResponse.json({ error: "Invalid plan id." }, { status: 400 });
+    }
+
+    await connectDB();
+    const plan = await MealPlan.findById(params.id);
+    // Deleting is destructive, so unlike GET/POST it requires ownership —
+    // legacy ownerless plans can't be deleted through the API.
+    if (!plan || plan.ownerId !== getOwner(req).ownerId) {
+      return NextResponse.json({ error: "Plan not found." }, { status: 404 });
+    }
+
+    await plan.deleteOne();
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    logError("DELETE /api/plan/[id]", err);
+    return NextResponse.json({ error: "Failed to delete plan." }, { status: 500 });
   }
 }
