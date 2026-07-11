@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import AtlasLogo from "@/components/AtlasLogo";
 import VoiceRecorder, { VoiceStatus } from "@/components/VoiceRecorder";
-import MealPlanGrid from "@/components/MealPlanGrid";
+import MealPlanGrid, { MealType } from "@/components/MealPlanGrid";
 import ShoppingList from "@/components/ShoppingList";
 import PlanHistory from "@/components/PlanHistory";
 import { IDayPlan, IShoppingItem } from "@/lib/models/MealPlan";
@@ -118,6 +118,38 @@ export default function Home() {
 
   function handleRefinement(transcript: string) {
     void refinePlan(transcript);
+  }
+
+  async function handleSwapMeal(day: string, mealType: MealType) {
+    if (!plan || inFlightRef.current) return;
+    inFlightRef.current = true;
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setVoiceStatus("refining");
+    setAppState("refining");
+    setError(null);
+
+    try {
+      const res = await fetch(`/api/plan/${plan.planId}/meal`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ day, mealType }),
+        signal: controller.signal,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to swap meal.");
+      setPlan((prev) => prev ? { ...prev, days: data.days, shoppingList: data.shoppingList } : prev);
+      setAppState("ready");
+      setVoiceStatus("idle");
+    } catch (err: unknown) {
+      if (!isAbort(err)) {
+        setError(err instanceof Error ? err.message : "Something went wrong.");
+        setAppState("ready");
+        setVoiceStatus("idle");
+      }
+    } finally {
+      inFlightRef.current = false;
+    }
   }
 
   function handleServingsChange(n: number) {
@@ -346,7 +378,7 @@ export default function Home() {
 
             <div className="lg:grid lg:grid-cols-3 lg:gap-8 lg:items-start">
               <div className={`lg:col-span-2 ${activeTab === "plan" ? "block" : "hidden"} lg:block`}>
-                <MealPlanGrid days={plan.days} />
+                <MealPlanGrid days={plan.days} onSwapMeal={handleSwapMeal} />
               </div>
               <div className={`lg:sticky lg:top-8 ${activeTab === "shopping" ? "block" : "hidden"} lg:block`}>
                 <ShoppingList items={plan.shoppingList} planId={plan.planId} />

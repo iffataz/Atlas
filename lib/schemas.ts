@@ -59,3 +59,8 @@ export const RefinementInputSchema = z.object({
   // Present when the user changes servings after generation.
   servings: z.coerce.number().int().min(1).max(20).optional(),
 });
+
+export const MealSwapInputSchema = z.object({
+  day: z.string().trim().min(1, "Day is required."),
+  mealType: z.enum(["breakfast", "lunch", "dinner"]),
+});

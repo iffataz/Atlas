@@ -4,8 +4,11 @@ import { useState } from "react";
 import { IDayPlan, IMeal, IIngredient } from "@/lib/models/MealPlan";
 import { metricHint } from "@/lib/unitConversion";
 
+export type MealType = "breakfast" | "lunch" | "dinner";
+
 interface MealPlanGridProps {
   days: IDayPlan[];
+  onSwapMeal?: (day: string, mealType: MealType) => void;
 }
 
 const MEAL_TYPES: Array<keyof Pick<IDayPlan, "breakfast" | "lunch" | "dinner">> = [
@@ -57,12 +60,28 @@ function MealCell({
   );
 }
 
-function IngredientDrawer({ meal }: { meal: IMeal }) {
+function IngredientDrawer({
+  meal,
+  onSwap,
+}: {
+  meal: IMeal;
+  onSwap?: () => void;
+}) {
   return (
     <div className="border-2 border-t-0 border-ink bg-white p-4">
-      <h4 className="font-display uppercase tracking-widest text-xs text-ink mb-3">
-        Ingredients — {meal.name}
-      </h4>
+      <div className="flex items-center justify-between gap-3 mb-3">
+        <h4 className="font-display uppercase tracking-widest text-xs text-ink">
+          Ingredients — {meal.name}
+        </h4>
+        {onSwap && (
+          <button
+            onClick={onSwap}
+            className="border-2 border-ink bg-white text-ink text-[10px] font-display uppercase tracking-widest px-2.5 py-1 shadow-brutal-sm hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-brutal active:translate-x-0.5 active:translate-y-0.5 active:shadow-none transition-all shrink-0"
+          >
+            Swap this meal
+          </button>
+        )}
+      </div>
       <ul>
         {meal.ingredients.map((ing: IIngredient, i: number) => (
           <li
@@ -83,7 +102,7 @@ function IngredientDrawer({ meal }: { meal: IMeal }) {
   );
 }
 
-export default function MealPlanGrid({ days }: MealPlanGridProps) {
+export default function MealPlanGrid({ days, onSwapMeal }: MealPlanGridProps) {
   const [selected, setSelected] = useState<{ dayIdx: number; mealType: string } | null>(null);
 
   function toggle(dayIdx: number, mealType: string) {
@@ -121,7 +140,16 @@ export default function MealPlanGrid({ days }: MealPlanGridProps) {
             </div>
 
             {/* Ingredient drawer spans the full day card */}
-            {selectedMeal && <IngredientDrawer meal={selectedMeal} />}
+            {selectedMeal && (
+              <IngredientDrawer
+                meal={selectedMeal}
+                onSwap={
+                  onSwapMeal
+                    ? () => onSwapMeal(d.day, selected!.mealType as MealType)
+                    : undefined
+                }
+              />
+            )}
           </div>
         );
       })}
