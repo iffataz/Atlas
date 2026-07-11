@@ -7,6 +7,7 @@ import { aggregateIngredients } from "@/lib/aggregateIngredients";
 import { getOwner } from "@/lib/owner";
 import { limitLlmCall } from "@/lib/ratelimit";
 import { MealPlanDaysSchema, RefinementInputSchema } from "@/lib/schemas";
+import { logError } from "@/lib/log";
 
 export const runtime = "nodejs";
 
@@ -32,7 +33,7 @@ export async function GET(
     }
     return NextResponse.json(plan);
   } catch (err) {
-    console.error("GET /api/plan/[id] error:", err);
+    logError("GET /api/plan/[id]", err);
     return NextResponse.json({ error: "Failed to fetch plan." }, { status: 500 });
   }
 }
@@ -90,7 +91,7 @@ export async function POST(
 
     return NextResponse.json({ planId: plan._id.toString(), days: updatedDays, shoppingList });
   } catch (err) {
-    console.error("POST /api/plan/[id] error:", err);
+    logError("POST /api/plan/[id]", err);
     if (err instanceof LlmResponseError) {
       return NextResponse.json(
         { error: "The meal planner gave an unusable response. Please try again." },

@@ -1,4 +1,5 @@
 import Groq from "groq-sdk";
+import type { IDayPlan } from "./models/MealPlan";
 
 // Lazy singleton — avoids "missing API key" error during Next.js build
 let _groq: Groq | null = null;
@@ -101,11 +102,19 @@ export function generateMealPlan(preferences: string, servings: number) {
 }
 
 export function refineMealPlan(
-  existingPlan: object,
+  existingPlan: { days: IDayPlan[] },
   instruction: string,
   servings: number
 ) {
-  return callGroq(buildRefinementPrompt(existingPlan, instruction, servings));
+  // Meal names + descriptions are enough context to know what to keep;
+  // resending every ingredient roughly triples the prompt for no gain.
+  const slimDays = existingPlan.days.map((d) => ({
+    day: d.day,
+    breakfast: { name: d.breakfast.name, description: d.breakfast.description },
+    lunch: { name: d.lunch.name, description: d.lunch.description },
+    dinner: { name: d.dinner.name, description: d.dinner.description },
+  }));
+  return callGroq(buildRefinementPrompt({ days: slimDays }, instruction, servings));
 }
 
 function buildMealPlanPrompt(preferences: string, servings: number): string {
@@ -159,10 +168,10 @@ ${instruction}
 </user_instruction>
 Servings per meal: ${servings}
 
-Current meal plan:
+Current meal plan (meal names and descriptions only):
 ${JSON.stringify(existingPlan, null, 2)}
 
-Return the complete 7-day meal plan with the requested changes applied. Keep all unaffected days and meals identical to the current plan. Follow the same rules:
+Return the complete 7-day meal plan with the requested changes applied, including a full ingredient list for every meal. Keep the names and descriptions of all unaffected meals identical to the current plan, and give them ingredients consistent with their name and description. Follow the same rules:
 - Ingredient "name": singular lowercase
 - "unit": g, kg, ml, L, cup, tbsp, tsp, piece, slice, clove, bunch, can, or "whole"
 - "category": one of Produce, Proteins, Dairy, Grains, Pantry, Frozen, Other

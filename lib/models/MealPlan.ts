@@ -69,12 +69,15 @@ const MealPlanSchema = new Schema<IMealPlan>(
   {
     preferences: { type: String, required: true },
     servings: { type: Number, required: true, default: 2 },
-    ownerId: { type: String, index: true },
+    ownerId: { type: String },
     days: [DayPlanSchema],
     shoppingList: [ShoppingItemSchema],
   },
   { timestamps: true, collection: "meal_plans" }
 );
+
+// Covers the history query: find by owner, newest first.
+MealPlanSchema.index({ ownerId: 1, createdAt: -1 });
 
 const MealPlan: Model<IMealPlan> =
   mongoose.models.MealPlan ||

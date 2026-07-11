@@ -6,6 +6,7 @@ import { aggregateIngredients } from "@/lib/aggregateIngredients";
 import { getOwner, attachOwnerCookie } from "@/lib/owner";
 import { limitLlmCall } from "@/lib/ratelimit";
 import { MealPlanDaysSchema, PreferencesInputSchema } from "@/lib/schemas";
+import { logError } from "@/lib/log";
 
 export const runtime = "nodejs";
 
@@ -66,7 +67,7 @@ export async function POST(req: NextRequest) {
       owner
     );
   } catch (err) {
-    console.error("POST /api/plan error:", err);
+    logError("POST /api/plan", err);
     if (err instanceof LlmResponseError) {
       return attachOwnerCookie(
         NextResponse.json(
@@ -88,20 +89,29 @@ export async function GET(req: NextRequest) {
   try {
     // Brand-new browser: no cookie means no plans can belong to it yet.
     if (owner.isNew) {
-      return attachOwnerCookie(NextResponse.json({ plans: [] }), owner);
+      return attachOwnerCookie(NextResponse.json({ plans: [], hasMore: false }), owner);
+    }
+
+    const { searchParams } = req.nextUrl;
+    const limit = Math.min(Math.max(Number(searchParams.get("limit")) || 10, 1), 50);
+    const before = searchParams.get("before");
+    const beforeDate = before ? new Date(before) : null;
+
+    const query: Record<string, unknown> = { ownerId: owner.ownerId };
+    if (beforeDate && !isNaN(beforeDate.getTime())) {
+      query.createdAt = { $lt: beforeDate };
     }
 
     await connectDB();
-    const plans = await MealPlan.find(
-      { ownerId: owner.ownerId },
-      { preferences: 1, servings: 1, createdAt: 1 }
-    )
+    // Fetch one extra row to tell the client whether older plans exist.
+    const rows = await MealPlan.find(query, { preferences: 1, servings: 1, createdAt: 1 })
       .sort({ createdAt: -1 })
-      .limit(10)
+      .limit(limit + 1)
       .lean();
-    return NextResponse.json({ plans });
+    const plans = rows.slice(0, limit);
+    return NextResponse.json({ plans, hasMore: rows.length > limit });
   } catch (err) {
-    console.error("GET /api/plan error:", err);
+    logError("GET /api/plan", err);
     return attachOwnerCookie(
       NextResponse.json({ error: "Failed to fetch plans." }, { status: 500 }),
       owner
