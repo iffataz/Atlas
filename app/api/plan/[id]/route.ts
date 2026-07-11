@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import mongoose from "mongoose";
 import connectDB from "@/lib/mongodb";
 import MealPlan, { IMealPlan } from "@/lib/models/MealPlan";
-import { refineMealPlan } from "@/lib/llm";
+import { refineMealPlan, LlmResponseError } from "@/lib/llm";
 import { aggregateIngredients } from "@/lib/aggregateIngredients";
 import { getOwner } from "@/lib/owner";
 import { limitLlmCall } from "@/lib/ratelimit";
+import { MealPlanDaysSchema, RefinementInputSchema } from "@/lib/schemas";
 
 export const runtime = "nodejs";
 
@@ -54,12 +55,15 @@ export async function POST(
       );
     }
 
-    const body = await req.json();
-    const instruction: string = (body.instruction ?? "").trim().slice(0, 500);
-
-    if (!instruction) {
-      return NextResponse.json({ error: "Instruction is required." }, { status: 400 });
+    const body = await req.json().catch(() => null);
+    const input = RefinementInputSchema.safeParse(body ?? {});
+    if (!input.success) {
+      return NextResponse.json(
+        { error: input.error.issues[0]?.message ?? "Invalid request." },
+        { status: 400 }
+      );
     }
+    const { instruction } = input.data;
 
     await connectDB();
     const plan = await MealPlan.findById(params.id);
@@ -70,15 +74,15 @@ export async function POST(
     // Groq returns all 7 days — no merge logic needed
     const parsed = await refineMealPlan({ days: plan.days }, instruction, plan.servings);
 
-    if (!Array.isArray(parsed.days) || parsed.days.length !== 7) {
+    const validated = MealPlanDaysSchema.safeParse(parsed);
+    if (!validated.success) {
       return NextResponse.json(
         { error: "Unexpected refinement structure. Please try again." },
         { status: 502 }
       );
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const updatedDays = parsed.days as any[];
+    const updatedDays = validated.data.days;
     const shoppingList = aggregateIngredients(updatedDays);
     plan.days = updatedDays;
     plan.shoppingList = shoppingList;
@@ -87,6 +91,12 @@ export async function POST(
     return NextResponse.json({ planId: plan._id.toString(), days: updatedDays, shoppingList });
   } catch (err) {
     console.error("POST /api/plan/[id] error:", err);
+    if (err instanceof LlmResponseError) {
+      return NextResponse.json(
+        { error: "The meal planner gave an unusable response. Please try again." },
+        { status: 502 }
+      );
+    }
     return NextResponse.json({ error: "Failed to refine meal plan." }, { status: 500 });
   }
 }
