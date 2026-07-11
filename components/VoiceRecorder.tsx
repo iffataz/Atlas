@@ -21,17 +21,25 @@ export default function VoiceRecorder({
   listeningHint = "Describe your dietary needs, then stop speaking.",
   processingLabel = "Processing",
 }: VoiceRecorderProps) {
-  const [speechAvailable, setSpeechAvailable] = useState(false);
+  const [speechAvailable, setSpeechAvailable] = useState(true);
+  // Recognized speech lands here for review/editing instead of submitting
+  // directly — and the same textarea is the input for browsers without
+  // speech recognition (Firefox/Safari).
+  const [typing, setTyping] = useState(false);
+  const [text, setText] = useState("");
+  const [micError, setMicError] = useState<string | null>(null);
   const recognitionRef = useRef<any>(null);
 
   useEffect(() => {
-    setSpeechAvailable(
-      "SpeechRecognition" in window || "webkitSpeechRecognition" in window
-    );
+    const available =
+      "SpeechRecognition" in window || "webkitSpeechRecognition" in window;
+    setSpeechAvailable(available);
+    if (!available) setTyping(true);
   }, []);
 
   function startListening() {
     if (!speechAvailable) return;
+    setMicError(null);
 
     const SR: any =
       (window as any).SpeechRecognition ||
@@ -51,12 +59,20 @@ export default function VoiceRecorder({
       const transcript: string = event.results[0][0].transcript.trim();
       if (transcript) {
         gotResult = true;
-        onTranscript(transcript);
+        setText(transcript);
+        setTyping(true);
+        onStatusChange("idle");
       }
     };
 
     recognition.onerror = (event: any) => {
       console.error("Recognition error:", event.error);
+      if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+        setMicError("Microphone access denied. Check browser permissions, or type below.");
+        setTyping(true);
+      } else if (event.error !== "aborted" && event.error !== "no-speech") {
+        setMicError("Speech recognition failed. You can type instead.");
+      }
       onStatusChange("idle");
     };
 
@@ -71,29 +87,26 @@ export default function VoiceRecorder({
     recognitionRef.current?.stop();
   }
 
+  function submitText() {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    setMicError(null);
+    onTranscript(trimmed);
+    setText("");
+    if (speechAvailable) setTyping(false);
+  }
+
   const isActive =
     status === "listening" || status === "processing" || status === "refining";
 
   return (
-    <div className="flex flex-col items-center gap-4">
-      {!speechAvailable && (
-        <div className="border-2 border-ink bg-red-100 px-4 py-3 text-left">
-          <p className="font-display uppercase tracking-widest text-xs text-red-700 mb-1">
-            Not supported
-          </p>
-          <p className="text-ink text-sm">
-            Speech recognition requires Chrome or Edge.
-          </p>
-        </div>
-      )}
-
-      {speechAvailable && !isActive && (
+    <div className="flex flex-col items-center gap-4 w-full">
+      {!isActive && !typing && speechAvailable && (
         <div className="flex flex-col items-center gap-3">
           <button
             onClick={startListening}
-            disabled={status === "done"}
             aria-label={buttonLabel}
-            className="w-16 h-16 border-2 border-ink bg-white flex items-center justify-center shadow-brutal hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-brutal-lg active:translate-x-0.5 active:translate-y-0.5 active:shadow-none disabled:opacity-40 transition-all"
+            className="w-16 h-16 border-2 border-ink bg-white flex items-center justify-center shadow-brutal hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-brutal-lg active:translate-x-0.5 active:translate-y-0.5 active:shadow-none transition-all"
           >
             <svg
               className="w-7 h-7 text-ink"
@@ -107,7 +120,55 @@ export default function VoiceRecorder({
           <span className="text-ink text-xs font-display uppercase tracking-widest">
             {buttonLabel}
           </span>
+          <button
+            onClick={() => setTyping(true)}
+            className="text-muted text-xs font-display uppercase tracking-widest underline underline-offset-4 hover:text-atlas transition-colors"
+          >
+            Type instead
+          </button>
         </div>
+      )}
+
+      {!isActive && typing && (
+        <div className="flex flex-col items-center gap-3 w-full max-w-sm">
+          <label htmlFor="voice-draft" className="sr-only">
+            {buttonLabel}
+          </label>
+          <textarea
+            id="voice-draft"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder={listeningHint}
+            rows={3}
+            className="w-full border-2 border-ink bg-white text-ink text-sm px-3 py-2 resize-none focus:outline-none focus:shadow-brutal-sm"
+          />
+          <div className="flex items-center gap-4">
+            <button
+              onClick={submitText}
+              disabled={!text.trim()}
+              className="border-2 border-ink bg-atlas text-white text-xs font-display uppercase tracking-widest px-4 py-2 shadow-brutal-sm hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-brutal active:translate-x-0.5 active:translate-y-0.5 active:shadow-none disabled:opacity-40 disabled:hover:translate-x-0 disabled:hover:translate-y-0 disabled:hover:shadow-brutal-sm transition-all"
+            >
+              {buttonLabel}
+            </button>
+            {speechAvailable && (
+              <button
+                onClick={() => {
+                  setTyping(false);
+                  setText("");
+                }}
+                className="text-muted text-xs font-display uppercase tracking-widest underline underline-offset-4 hover:text-atlas transition-colors"
+              >
+                Speak instead
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {micError && !isActive && (
+        <p role="alert" className="border-2 border-ink bg-red-100 text-ink text-sm px-4 py-2 max-w-sm">
+          {micError}
+        </p>
       )}
 
       {status === "listening" && (
