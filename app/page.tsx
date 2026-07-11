@@ -273,7 +273,7 @@ export default function Home() {
                 <MealPlanGrid days={plan.days} />
               </div>
               <div className={`lg:sticky lg:top-8 ${activeTab === "shopping" ? "block" : "hidden"} lg:block`}>
-                <ShoppingList items={plan.shoppingList} />
+                <ShoppingList items={plan.shoppingList} planId={plan.planId} />
               </div>
             </div>
           </div>

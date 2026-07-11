@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { IShoppingItem } from "@/lib/models/MealPlan";
 
 interface ShoppingListProps {
   items: IShoppingItem[];
+  planId: string;
 }
 
 const CATEGORY_ORDER = [
@@ -17,14 +18,32 @@ const CATEGORY_ORDER = [
   "Other",
 ];
 
-export default function ShoppingList({ items }: ShoppingListProps) {
+// Checked state survives refresh/reload per plan; stale keys from refined
+// plans are ignored harmlessly.
+const storageKey = (planId: string) => `atlas-checked-${planId}`;
+
+export default function ShoppingList({ items, planId }: ShoppingListProps) {
   const [checked, setChecked] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(storageKey(planId));
+      setChecked(new Set(raw ? (JSON.parse(raw) as string[]) : []));
+    } catch {
+      setChecked(new Set());
+    }
+  }, [planId]);
 
   function toggle(key: string) {
     setChecked((prev) => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
       else next.add(key);
+      try {
+        localStorage.setItem(storageKey(planId), JSON.stringify(Array.from(next)));
+      } catch {
+        // Private mode / quota — checks still work for this session.
+      }
       return next;
     });
   }
@@ -74,48 +93,54 @@ export default function ShoppingList({ items }: ShoppingListProps) {
                 const key = `${item.name}||${item.unit}`;
                 const isChecked = checked.has(key);
                 return (
-                  <li
-                    key={key}
-                    onClick={() => toggle(key)}
-                    className="flex items-center justify-between py-1.5 cursor-pointer group"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={`w-4 h-4 border-2 border-ink flex-shrink-0 flex items-center justify-center transition-colors ${
-                          isChecked ? "bg-atlas border-atlas" : "bg-white group-hover:bg-atlas-light"
-                        }`}
-                      >
-                        {isChecked && (
-                          <svg
-                            className="w-3 h-3 text-white"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                            strokeWidth={3}
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              d="M5 13l4 4L19 7"
-                            />
-                          </svg>
-                        )}
+                  <li key={key} className="py-1.5">
+                    <label className="flex items-center justify-between cursor-pointer group">
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => toggle(key)}
+                          className="peer sr-only"
+                          aria-label={`${item.name}, ${item.totalQuantity} ${item.unit}`}
+                        />
+                        <span
+                          aria-hidden="true"
+                          className={`w-4 h-4 border-2 border-ink flex-shrink-0 flex items-center justify-center transition-colors peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-atlas ${
+                            isChecked ? "bg-atlas border-atlas" : "bg-white group-hover:bg-atlas-light"
+                          }`}
+                        >
+                          {isChecked && (
+                            <svg
+                              className="w-3 h-3 text-white"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                              strokeWidth={3}
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M5 13l4 4L19 7"
+                              />
+                            </svg>
+                          )}
+                        </span>
+                        <span
+                          className={`capitalize text-sm transition-colors ${
+                            isChecked ? "text-muted line-through" : "text-ink"
+                          }`}
+                        >
+                          {item.name}
+                        </span>
                       </div>
                       <span
-                        className={`capitalize text-sm transition-colors ${
-                          isChecked ? "text-muted line-through" : "text-ink"
+                        className={`text-sm transition-colors ${
+                          isChecked ? "text-muted/50" : "text-muted"
                         }`}
                       >
-                        {item.name}
+                        {item.totalQuantity} {item.unit}
                       </span>
-                    </div>
-                    <span
-                      className={`text-sm transition-colors ${
-                        isChecked ? "text-muted/50" : "text-muted"
-                      }`}
-                    >
-                      {item.totalQuantity} {item.unit}
-                    </span>
+                    </label>
                   </li>
                 );
               })}
