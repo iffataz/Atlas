@@ -27,8 +27,20 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [servings, setServings] = useState(2);
   const planSectionRef = useRef<HTMLElement>(null);
+  // A second submit while a request is in flight would double the paid Groq
+  // call, so requests are guarded and abortable.
+  const inFlightRef = useRef(false);
+  const abortRef = useRef<AbortController | null>(null);
+
+  function isAbort(err: unknown) {
+    return err instanceof DOMException && err.name === "AbortError";
+  }
 
   async function handlePreferences(transcript: string) {
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
+    const controller = new AbortController();
+    abortRef.current = controller;
     setVoiceStatus("processing");
     setAppState("generating");
     setError(null);
@@ -38,6 +50,7 @@ export default function Home() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ preferences: transcript, servings }),
+        signal: controller.signal,
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to generate plan.");
@@ -48,14 +61,21 @@ export default function Home() {
         planSectionRef.current?.scrollIntoView({ behavior: "smooth" });
       }, 100);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Something went wrong.");
-      setAppState("idle");
-      setVoiceStatus("idle");
+      if (!isAbort(err)) {
+        setError(err instanceof Error ? err.message : "Something went wrong.");
+        setAppState("idle");
+        setVoiceStatus("idle");
+      }
+    } finally {
+      inFlightRef.current = false;
     }
   }
 
   async function handleRefinement(transcript: string) {
-    if (!plan) return;
+    if (!plan || inFlightRef.current) return;
+    inFlightRef.current = true;
+    const controller = new AbortController();
+    abortRef.current = controller;
     setVoiceStatus("refining");
     setAppState("refining");
     setError(null);
@@ -65,6 +85,7 @@ export default function Home() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ instruction: transcript }),
+        signal: controller.signal,
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to refine plan.");
@@ -72,18 +93,26 @@ export default function Home() {
       setAppState("ready");
       setVoiceStatus("idle");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Something went wrong.");
-      setAppState("ready");
-      setVoiceStatus("idle");
+      if (!isAbort(err)) {
+        setError(err instanceof Error ? err.message : "Something went wrong.");
+        setAppState("ready");
+        setVoiceStatus("idle");
+      }
+    } finally {
+      inFlightRef.current = false;
     }
   }
 
   async function loadPlan(planId: string) {
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
+    const controller = new AbortController();
+    abortRef.current = controller;
     setAppState("generating");
     setError(null);
 
     try {
-      const res = await fetch(`/api/plan/${planId}`);
+      const res = await fetch(`/api/plan/${planId}`, { signal: controller.signal });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to load plan.");
       setPlan({
@@ -98,12 +127,17 @@ export default function Home() {
         planSectionRef.current?.scrollIntoView({ behavior: "smooth" });
       }, 100);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Something went wrong.");
-      setAppState("idle");
+      if (!isAbort(err)) {
+        setError(err instanceof Error ? err.message : "Something went wrong.");
+        setAppState("idle");
+      }
+    } finally {
+      inFlightRef.current = false;
     }
   }
 
   function handleReset() {
+    abortRef.current?.abort();
     setPlan(null);
     setAppState("idle");
     setVoiceStatus("idle");
