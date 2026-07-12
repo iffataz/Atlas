@@ -28,6 +28,9 @@ export default function VoiceRecorder({
   const [typing, setTyping] = useState(false);
   const [text, setText] = useState("");
   const [micError, setMicError] = useState<string | null>(null);
+  // Holds the live SpeechRecognition instance so the separate stop() handler
+  // (bound to the Cancel button) can reach the same object startListening()
+  // created, without threading it through props or state.
   const recognitionRef = useRef<any>(null);
 
   useEffect(() => {
@@ -52,13 +55,21 @@ export default function VoiceRecorder({
     recognition.lang = "en-US";
     recognition.interimResults = false;
 
+    // Tracks whether onresult already fired, so onend (which always fires
+    // after either a result or a failure) doesn't clobber a status that
+    // onresult already set.
     let gotResult = false;
     onStatusChange("listening");
 
+    // Handlers are wired up before recognition.start() so there's no window
+    // where the browser could fire an event before a handler exists.
     recognition.onresult = (event: any) => {
       const transcript: string = event.results[0][0].transcript.trim();
       if (transcript) {
         gotResult = true;
+        // Land the transcript in the editable textarea instead of
+        // submitting directly, so the user can fix a mis-transcription
+        // before it's sent to the LLM.
         setText(transcript);
         setTyping(true);
         onStatusChange("idle");
@@ -67,6 +78,9 @@ export default function VoiceRecorder({
 
     recognition.onerror = (event: any) => {
       console.error("Recognition error:", event.error);
+      // Permission denial gets its own message and forces the typing
+      // fallback, since retrying the mic won't help. "aborted"/"no-speech"
+      // are expected/silent (e.g. user clicked Cancel) rather than failures.
       if (event.error === "not-allowed" || event.error === "service-not-allowed") {
         setMicError("Microphone access denied. Check browser permissions, or type below.");
         setTyping(true);
@@ -80,6 +94,7 @@ export default function VoiceRecorder({
       if (!gotResult) onStatusChange("idle");
     };
 
+    // Actually turns the mic on; browser may prompt for permission here.
     recognition.start();
   }
 
@@ -87,6 +102,8 @@ export default function VoiceRecorder({
     recognitionRef.current?.stop();
   }
 
+  // The actual hand-off point to the parent — nothing is sent upstream
+  // until the user confirms the (possibly edited) text.
   function submitText() {
     const trimmed = text.trim();
     if (!trimmed) return;
@@ -96,6 +113,8 @@ export default function VoiceRecorder({
     if (speechAvailable) setTyping(false);
   }
 
+  // Groups every non-idle status so the mic button / textarea (the
+  // "waiting for input" UI) hide together while any of them is active.
   const isActive =
     status === "listening" || status === "processing" || status === "refining";
 
