@@ -9,6 +9,9 @@ import ShoppingList from "@/components/ShoppingList";
 import PlanHistory from "@/components/PlanHistory";
 import { IDayPlan, IShoppingItem } from "@/lib/models/MealPlan";
 
+// The whole screen is driven off this one state machine rather than
+// separate isLoading/isError booleans, so "generating and refining at once"
+// or similar nonsense combinations can't happen.
 type AppState = "idle" | "generating" | "refining" | "ready";
 type Tab = "plan" | "shopping";
 
@@ -32,6 +35,9 @@ export default function Home() {
   const inFlightRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
 
+  // Cancelling a request (Start Over, or a new request replacing an old
+  // one) throws an AbortError — that's an intentional cancellation, not a
+  // real failure, so it should never surface as an error message.
   function isAbort(err: unknown) {
     return err instanceof DOMException && err.name === "AbortError";
   }
@@ -84,6 +90,9 @@ export default function Home() {
     inFlightRef.current = true;
     const controller = new AbortController();
     abortRef.current = controller;
+    // Optimistic update: reflect the new serving size immediately rather
+    // than waiting on the round trip, then roll back below if the request
+    // actually fails.
     const previousServings = servings;
     if (newServings) setServings(newServings);
     setVoiceStatus("refining");
@@ -106,6 +115,7 @@ export default function Home() {
       setVoiceStatus("idle");
     } catch (err: unknown) {
       if (!isAbort(err)) {
+        // Undo the optimistic serving-size change from above.
         if (newServings) setServings(previousServings);
         setError(err instanceof Error ? err.message : "Something went wrong.");
         setAppState("ready");
@@ -153,7 +163,7 @@ export default function Home() {
   }
 
   function handleServingsChange(n: number) {
-    if (n === servings) return;
+    if (n === servings) return; // avoid a no-op refine call on re-selecting the same value
     void refinePlan(
       `Change the plan to ${n} serving${n === 1 ? "" : "s"} per meal and scale all ingredient quantities accordingly. Keep every meal the same.`,
       n
@@ -191,6 +201,8 @@ export default function Home() {
   }
 
   function handleReset() {
+    // Cancel whatever request is still in flight so a late response can't
+    // land after the user has already navigated away from it.
     abortRef.current?.abort();
     setPlan(null);
     setAppState("idle");
@@ -353,6 +365,8 @@ export default function Home() {
       {plan && (appState === "ready" || appState === "refining") && (
         <section
           ref={planSectionRef}
+          // tabIndex={-1} makes this section programmatically focusable
+          // (via the effect above) without adding it to the normal Tab order.
           tabIndex={-1}
           className={`border-t-2 border-ink py-12 px-6 focus:outline-none transition-opacity ${
             appState === "refining" ? "opacity-50 pointer-events-none" : ""
@@ -376,6 +390,15 @@ export default function Home() {
               ))}
             </div>
 
+            {/*
+              Both panels stay mounted at all times; only the Tailwind
+              hidden/block classes toggle per activeTab on mobile ("lg:block"
+              forces both visible side by side above the lg breakpoint). This
+              is deliberate: swapping to a conditional-unmount pattern would
+              reset each panel's internal state (e.g. MealPlanGrid's expanded
+              meal, ShoppingList's scroll position) every time the mobile tab
+              is switched.
+            */}
             <div className="lg:grid lg:grid-cols-3 lg:gap-8 lg:items-start">
               <div className={`lg:col-span-2 ${activeTab === "plan" ? "block" : "hidden"} lg:block`}>
                 <MealPlanGrid days={plan.days} onSwapMeal={handleSwapMeal} />
