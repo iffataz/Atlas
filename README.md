@@ -10,7 +10,7 @@ Atlas was inspired by the desire to make meal planning effortless and accessible
 
 1. Choose your serving size and tap **Plan my week**.
 2. Speak your dietary preferences, cuisine tastes, and any restrictions.
-3. Atlas generates a 7-day meal plan via Groq (Llama 4 Scout) and displays it as a card grid.
+3. Atlas generates a 7-day meal plan via Groq (GPT-OSS 120B) and displays it as a card grid.
 4. Switch to the **Shopping List** tab to see every ingredient aggregated and sorted by category.
 5. Tap **Refine your plan** and say what to change — Atlas updates the plan in place.
 6. Browse and reload past plans from your history.
@@ -20,7 +20,7 @@ Atlas was inspired by the desire to make meal planning effortless and accessible
 - **Framework**: Next.js 14 (App Router)
 - **Language**: TypeScript
 - **Styling**: Tailwind CSS
-- **LLM**: Groq API (Llama 4 Scout) via `groq-sdk`
+- **LLM**: Groq API (GPT-OSS 120B) via `groq-sdk`
 - **Database**: MongoDB Atlas + Mongoose
 - **Deployment**: Vercel
 

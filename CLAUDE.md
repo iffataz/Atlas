@@ -21,7 +21,7 @@ Atlas is a voice-assisted AI meal planning app. The user speaks (or types) dieta
 **Request flow:**
 1. `VoiceRecorder` captures speech (Web Speech API) into an editable textarea; browsers without speech support get the textarea directly
 2. `app/page.tsx` sends `{ preferences, servings }` to `POST /api/plan`
-3. Route calls Groq (Llama 4 Scout) via `lib/llm.ts` to generate a structured 7-day plan; the response is validated with zod (`lib/schemas.ts`) before anything is persisted
+3. Route calls Groq (`openai/gpt-oss-120b`) via `lib/llm.ts` to generate a structured 7-day plan; the response is validated with zod (`lib/schemas.ts`) before anything is persisted
 4. `lib/aggregateIngredients.ts` merges all ingredients into a shopping list
 5. Plan + shopping list are saved to MongoDB (`meal_plans` collection) and returned
 6. `MealPlanGrid` renders meals; `ShoppingList` renders ingredients by category (checked items persist in localStorage per plan)

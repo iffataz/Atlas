@@ -8,9 +8,10 @@ function getGroq(): Groq {
   return _groq;
 }
 
-const MODEL = "meta-llama/llama-4-scout-17b-16e-instruct";
+// Llama 4 Scout was retired by Groq (model_not_found) — gpt-oss-120b replaces it.
+const MODEL = "openai/gpt-oss-120b";
 
-// JSON Schema — Llama 4 Scout supports json_schema response format (best-effort)
+// JSON Schema — gpt-oss supports json_schema response format
 const MEAL_SCHEMA = {
   type: "object" as const,
   properties: {
