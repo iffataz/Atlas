@@ -24,6 +24,8 @@ Atlas was inspired by the desire to make meal planning effortless and accessible
 - **Database**: MongoDB Atlas + Mongoose
 - **Deployment**: Vercel
 
+For a walkthrough of how the code fits together, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
 ## Project Structure
 
 ```
