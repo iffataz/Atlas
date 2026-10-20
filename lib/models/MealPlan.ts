@@ -47,7 +47,9 @@ const IngredientSchema = new Schema<IIngredient>({
 
 const MealSchema = new Schema<IMeal>({
   name: { type: String, required: true },
-  description: { type: String, required: true },
+  // Not required: Mongoose's `required` rejects "", which is exactly what the
+  // zod schema repairs a missing/invalid model description to.
+  description: { type: String, default: "" },
   ingredients: [IngredientSchema],
 });
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
 import MealPlan from "@/lib/models/MealPlan";
-import { generateMealPlan, LlmResponseError } from "@/lib/llm";
+import { generateMealPlan, LlmBusyError, LlmResponseError } from "@/lib/llm";
 import { aggregateIngredients } from "@/lib/aggregateIngredients";
 import { getOwner, attachOwnerCookie } from "@/lib/owner";
 import { limitLlmCall } from "@/lib/ratelimit";
@@ -41,6 +41,10 @@ export async function POST(req: NextRequest) {
 
     const validated = MealPlanDaysSchema.safeParse(parsed);
     if (!validated.success) {
+      logError(
+        "POST /api/plan",
+        `Plan failed validation: ${JSON.stringify(validated.error.issues.slice(0, 5))}`
+      );
       return attachOwnerCookie(
         NextResponse.json(
           { error: "Unexpected meal plan structure. Please try again." },
@@ -68,6 +72,15 @@ export async function POST(req: NextRequest) {
     );
   } catch (err) {
     logError("POST /api/plan", err);
+    if (err instanceof LlmBusyError) {
+      return attachOwnerCookie(
+        NextResponse.json(
+          { error: "The meal planner is busy right now. Please try again in a minute." },
+          { status: 503, headers: { "Retry-After": "60" } }
+        ),
+        owner
+      );
+    }
     if (err instanceof LlmResponseError) {
       return attachOwnerCookie(
         NextResponse.json(

@@ -60,6 +60,12 @@ export const RefinementInputSchema = z.object({
   servings: z.coerce.number().int().min(1).max(20).optional(),
 });
 
+// Unlike generation, a bad value here is rejected rather than repaired —
+// silently rescaling someone's plan to a default would be surprising.
+export const ServingsInputSchema = z.object({
+  servings: z.coerce.number().int().min(1).max(20),
+});
+
 export const MealSwapInputSchema = z.object({
   day: z.string().trim().min(1, "Day is required."),
   mealType: z.enum(["breakfast", "lunch", "dinner"]),

@@ -85,16 +85,11 @@ export default function Home() {
     }
   }
 
-  async function refinePlan(instruction: string, newServings?: number) {
+  async function refinePlan(instruction: string) {
     if (!plan || inFlightRef.current) return;
     inFlightRef.current = true;
     const controller = new AbortController();
     abortRef.current = controller;
-    // Optimistic update: reflect the new serving size immediately rather
-    // than waiting on the round trip, then roll back below if the request
-    // actually fails.
-    const previousServings = servings;
-    if (newServings) setServings(newServings);
     setVoiceStatus("refining");
     setAppState("refining");
     setError(null);
@@ -103,9 +98,7 @@ export default function Home() {
       const res = await fetch(`/api/plan/${plan.planId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(
-          newServings ? { instruction, servings: newServings } : { instruction }
-        ),
+        body: JSON.stringify({ instruction }),
         signal: controller.signal,
       });
       const data = await res.json();
@@ -115,8 +108,6 @@ export default function Home() {
       setVoiceStatus("idle");
     } catch (err: unknown) {
       if (!isAbort(err)) {
-        // Undo the optimistic serving-size change from above.
-        if (newServings) setServings(previousServings);
         setError(err instanceof Error ? err.message : "Something went wrong.");
         setAppState("ready");
         setVoiceStatus("idle");
@@ -162,12 +153,37 @@ export default function Home() {
     }
   }
 
-  function handleServingsChange(n: number) {
-    if (n === servings) return; // avoid a no-op refine call on re-selecting the same value
-    void refinePlan(
-      `Change the plan to ${n} serving${n === 1 ? "" : "s"} per meal and scale all ingredient quantities accordingly. Keep every meal the same.`,
-      n
-    );
+  // Rescaling is plain arithmetic on the server (no LLM), so it skips the
+  // loading screen and just updates the plan in place.
+  async function handleServingsChange(n: number) {
+    if (!plan || n === servings || inFlightRef.current) return;
+    inFlightRef.current = true;
+    const controller = new AbortController();
+    abortRef.current = controller;
+    // Optimistic update: reflect the new serving size immediately, then roll
+    // back below if the request actually fails.
+    const previousServings = servings;
+    setServings(n);
+    setError(null);
+
+    try {
+      const res = await fetch(`/api/plan/${plan.planId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ servings: n }),
+        signal: controller.signal,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to update servings.");
+      setPlan((prev) => prev ? { ...prev, days: data.days, shoppingList: data.shoppingList } : prev);
+    } catch (err: unknown) {
+      if (!isAbort(err)) {
+        setServings(previousServings);
+        setError(err instanceof Error ? err.message : "Something went wrong.");
+      }
+    } finally {
+      inFlightRef.current = false;
+    }
   }
 
   async function loadPlan(planId: string) {

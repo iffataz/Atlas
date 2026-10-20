@@ -8,11 +8,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 npm run dev      # Start dev server on localhost:3000
 npm run build    # Production build (must pass with zero type errors)
 npm run lint     # ESLint via Next.js
-npm run test     # Vitest unit tests (lib/schemas.test.ts)
+npm run test     # Vitest unit tests (lib/**/*.test.ts)
 npm run start    # Start production server
 ```
 
-Unit tests cover the zod schemas only; verify API/UI changes manually via the browser and `/api/health`. Never run `npm run build` while the dev server is running — both write to `.next` and corrupt the dev cache (use `npx tsc --noEmit` for interim type checks).
+Unit tests cover the zod schemas, the Mongoose model and plan scaling; verify API/UI changes manually via the browser and `/api/health`. Never run `npm run build` while the dev server is running — both write to `.next` and corrupt the dev cache (use `npx tsc --noEmit` for interim type checks).
 
 ## Architecture
 
@@ -25,7 +25,7 @@ Atlas is a voice-assisted AI meal planning app. The user speaks (or types) dieta
 4. `lib/aggregateIngredients.ts` merges all ingredients into a shopping list
 5. Plan + shopping list are saved to MongoDB (`meal_plans` collection) and returned
 6. `MealPlanGrid` renders meals; `ShoppingList` renders ingredients by category (checked items persist in localStorage per plan)
-7. Refinement sends `{ instruction, servings? }` to `POST /api/plan/[id]`; single-meal swap sends `{ day, mealType }` to `POST /api/plan/[id]/meal`; `DELETE /api/plan/[id]` removes a plan
+7. Refinement sends `{ instruction, servings? }` to `POST /api/plan/[id]`; single-meal swap sends `{ day, mealType }` to `POST /api/plan/[id]/meal`; changing servings sends `{ servings }` to `PATCH /api/plan/[id]`, which rescales quantities arithmetically (`lib/scalePlan.ts`, no LLM call, no rate limit); `DELETE /api/plan/[id]` removes a plan
 
 **Ownership & abuse protection:**
 - Plans are scoped to an anonymous httpOnly cookie (`atlas_uid`, set in `lib/owner.ts`) — no real auth; plans are "unlisted", direct links work for anyone with the id
@@ -37,6 +37,7 @@ Atlas is a voice-assisted AI meal planning app. The user speaks (or types) dieta
 - `next.config.mjs` only — Next.js 14 does not support `next.config.ts`
 - MongoDB connection is cached on `global` to survive serverless warm restarts (`lib/mongodb.ts`)
 - Groq client is lazy-initialized in `lib/llm.ts` to avoid build-time errors
+- Keep `reasoning_effort: "low"` in `lib/llm.ts`: at default effort gpt-oss intermittently emits malformed JSON for the full plan (Groq 400 `json_validate_failed`) and burns ~3.8k hidden tokens. Groq's free tier allows 8k tokens/min and one plan uses ~5.5k (a refinement ~7.5k), so back-to-back LLM calls get rate-limited — surfaced as `LlmBusyError` → 503
 - Don't pass mongoose subdocuments to `aggregateIngredients` — spreading a subdocument drops its getter-backed fields; convert with `.toObject()` first
 
 ## Database

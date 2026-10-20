@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import mongoose from "mongoose";
 import connectDB from "@/lib/mongodb";
 import MealPlan, { IMealPlan } from "@/lib/models/MealPlan";
-import { refineMealPlan, LlmResponseError } from "@/lib/llm";
+import { refineMealPlan, LlmBusyError, LlmResponseError } from "@/lib/llm";
 import { aggregateIngredients } from "@/lib/aggregateIngredients";
 import { getOwner } from "@/lib/owner";
 import { limitLlmCall } from "@/lib/ratelimit";
-import { MealPlanDaysSchema, RefinementInputSchema } from "@/lib/schemas";
+import { scaleDays } from "@/lib/scalePlan";
+import { MealPlanDaysSchema, RefinementInputSchema, ServingsInputSchema } from "@/lib/schemas";
 import { logError } from "@/lib/log";
 
 export const runtime = "nodejs";
@@ -94,6 +95,12 @@ export async function POST(
     return NextResponse.json({ planId: plan._id.toString(), days: updatedDays, shoppingList });
   } catch (err) {
     logError("POST /api/plan/[id]", err);
+    if (err instanceof LlmBusyError) {
+      return NextResponse.json(
+        { error: "The meal planner is busy right now. Please try again in a minute." },
+        { status: 503, headers: { "Retry-After": "60" } }
+      );
+    }
     if (err instanceof LlmResponseError) {
       return NextResponse.json(
         { error: "The meal planner gave an unusable response. Please try again." },
@@ -101,6 +108,45 @@ export async function POST(
       );
     }
     return NextResponse.json({ error: "Failed to refine meal plan." }, { status: 500 });
+  }
+}
+
+// Rescale to a new serving size without an LLM call, so no rate limit.
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    if (!mongoose.isValidObjectId(params.id)) {
+      return NextResponse.json({ error: "Invalid plan id." }, { status: 400 });
+    }
+
+    const body = await req.json().catch(() => null);
+    const input = ServingsInputSchema.safeParse(body ?? {});
+    if (!input.success) {
+      return NextResponse.json({ error: "Servings must be between 1 and 20." }, { status: 400 });
+    }
+    const { servings } = input.data;
+
+    await connectDB();
+    const plan = await MealPlan.findById(params.id);
+    if (!plan || ownedBySomeoneElse(plan, getOwner(req).ownerId)) {
+      return NextResponse.json({ error: "Plan not found." }, { status: 404 });
+    }
+
+    // toObject() first — spreading mongoose subdocuments drops their fields.
+    const { days } = plan.toObject();
+    const scaledDays = scaleDays(days, plan.servings, servings);
+    const shoppingList = aggregateIngredients(scaledDays);
+    plan.days = scaledDays;
+    plan.shoppingList = shoppingList;
+    plan.servings = servings;
+    await plan.save();
+
+    return NextResponse.json({ planId: plan._id.toString(), days: scaledDays, shoppingList, servings });
+  } catch (err) {
+    logError("PATCH /api/plan/[id]", err);
+    return NextResponse.json({ error: "Failed to update servings." }, { status: 500 });
   }
 }
 

@@ -3,6 +3,7 @@ import {
   MealPlanDaysSchema,
   PreferencesInputSchema,
   RefinementInputSchema,
+  ServingsInputSchema,
 } from "./schemas";
 
 const meal = (name = "Oatmeal") => ({
@@ -96,5 +97,18 @@ describe("RefinementInputSchema", () => {
   it("accepts and trims a valid instruction", () => {
     const result = RefinementInputSchema.safeParse({ instruction: "  more fish  " });
     expect(result.success && result.data.instruction).toBe("more fish");
+  });
+});
+
+describe("ServingsInputSchema", () => {
+  it("accepts and coerces a valid serving count", () => {
+    const result = ServingsInputSchema.safeParse({ servings: "4" });
+    expect(result.success && result.data.servings).toBe(4);
+  });
+
+  it("rejects out-of-range or missing servings instead of repairing", () => {
+    expect(ServingsInputSchema.safeParse({ servings: 0 }).success).toBe(false);
+    expect(ServingsInputSchema.safeParse({ servings: 99 }).success).toBe(false);
+    expect(ServingsInputSchema.safeParse({}).success).toBe(false);
   });
 });

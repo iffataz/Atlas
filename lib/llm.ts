@@ -1,4 +1,4 @@
-import Groq from "groq-sdk";
+import Groq, { APIError } from "groq-sdk";
 import type { IDayPlan } from "./models/MealPlan";
 
 // Lazy singleton — avoids "missing API key" error during Next.js build
@@ -31,10 +31,12 @@ const MEAL_SCHEMA = {
           },
         },
         required: ["name", "quantity", "unit", "category"],
+        additionalProperties: false,
       },
     },
   },
   required: ["name", "description", "ingredients"],
+  additionalProperties: false,
 };
 
 const MEAL_PLAN_SCHEMA = {
@@ -51,10 +53,12 @@ const MEAL_PLAN_SCHEMA = {
           dinner:    { $ref: "#/$defs/meal" },
         },
         required: ["day", "breakfast", "lunch", "dinner"],
+        additionalProperties: false,
       },
     },
   },
   required: ["days"],
+  additionalProperties: false,
   $defs: {
     meal: MEAL_SCHEMA,
   },
@@ -63,6 +67,11 @@ const MEAL_PLAN_SCHEMA = {
 // Model gave a response we can't use (empty or unparseable) — the caller
 // should surface this as a 502, not a generic 500.
 export class LlmResponseError extends Error {}
+
+// Groq's free tier caps tokens per minute (8k) and one plan uses ~5.5k, so a
+// second LLM call within the same minute is rejected (413/429). The caller
+// should tell the user to wait rather than report a generic failure.
+export class LlmBusyError extends Error {}
 
 async function callGroq(
   prompt: string,
@@ -78,11 +87,23 @@ async function callGroq(
         {
           model: MODEL,
           messages: [{ role: "user", content: prompt }],
+          // A full plan is ~5k output tokens and a refinement ~6k+, so keep
+          // headroom: a lower cap truncates refinements mid-plan.
           max_tokens: 8192,
+          // Default (medium) reasoning burned ~3.8k hidden tokens per plan and
+          // the long nested JSON that followed was intermittently malformed
+          // (stray braces, restarted arrays) -> 400 json_validate_failed.
+          // Low effort: ~40 reasoning tokens, faster, and reliably valid.
+          reasoning_effort: "low",
           response_format: {
             type: "json_schema",
             json_schema: {
               name: schemaName,
+              // Without strict, Groq only checks the output is JSON: the model
+              // could drop required keys (e.g. Sunday with no lunch/dinner) and
+              // fail zod validation downstream. Strict constrains decoding to
+              // the schema, which requires additionalProperties: false.
+              strict: true,
               schema,
             },
           },
@@ -97,11 +118,24 @@ async function callGroq(
         throw new LlmResponseError("Model returned invalid JSON.");
       }
     } catch (err) {
-      lastError = err;
-      if (!(err instanceof LlmResponseError)) throw err;
+      lastError = translateGroqError(err);
+      if (!(lastError instanceof LlmResponseError)) throw lastError;
     }
   }
   throw lastError;
+}
+
+export function translateGroqError(err: unknown): unknown {
+  if (!(err instanceof APIError)) return err;
+  if (err.status === 413 || err.status === 429) {
+    return new LlmBusyError(err.message);
+  }
+  // Groq validates the output against the schema and rejects malformed JSON
+  // itself, so treat that the same as malformed JSON we caught ourselves.
+  if (err.status === 400 && /json_validate_failed/.test(err.message)) {
+    return new LlmResponseError(err.message);
+  }
+  return err;
 }
 
 export function generateMealPlan(preferences: string, servings: number) {

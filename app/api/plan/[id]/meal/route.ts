@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import mongoose from "mongoose";
 import connectDB from "@/lib/mongodb";
 import MealPlan from "@/lib/models/MealPlan";
-import { regenerateMeal, LlmResponseError } from "@/lib/llm";
+import { regenerateMeal, LlmBusyError, LlmResponseError } from "@/lib/llm";
 import { aggregateIngredients } from "@/lib/aggregateIngredients";
 import { getOwner } from "@/lib/owner";
 import { limitLlmCall } from "@/lib/ratelimit";
@@ -85,6 +85,12 @@ export async function POST(
     });
   } catch (err) {
     logError("POST /api/plan/[id]/meal", err);
+    if (err instanceof LlmBusyError) {
+      return NextResponse.json(
+        { error: "The meal planner is busy right now. Please try again in a minute." },
+        { status: 503, headers: { "Retry-After": "60" } }
+      );
+    }
     if (err instanceof LlmResponseError) {
       return NextResponse.json(
         { error: "The meal planner gave an unusable response. Please try again." },
