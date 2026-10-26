@@ -1,5 +1,5 @@
 import { IDayPlan, IIngredient, IShoppingItem } from "./models/MealPlan";
-import { convertToMetric, roundForShopping } from "./unitConversion";
+import { convertToMetric, normalizeUnit, roundForShopping } from "./unitConversion";
 
 // Normalize ingredient name: lowercase, trim, basic singularization
 function normalizeName(name: string): string {
@@ -22,8 +22,14 @@ function normalizeName(name: string): string {
     olives: "olive",
   };
   if (irregulars[lower]) return irregulars[lower];
-  // Drop trailing 's' only if word is >3 chars and ends in s (but not ss)
-  if (lower.length > 3 && lower.endsWith("s") && !lower.endsWith("ss")) {
+  // Drop trailing 's' only if word is >3 chars and ends in s (but not ss,
+  // and not us: hummus, asparagus, couscous are already singular)
+  if (
+    lower.length > 3 &&
+    lower.endsWith("s") &&
+    !lower.endsWith("ss") &&
+    !lower.endsWith("us")
+  ) {
     return lower.slice(0, -1);
   }
   return lower;
@@ -40,10 +46,11 @@ export function aggregateIngredients(days: IDayPlan[]): IShoppingItem[] {
     }
   }
 
-  // Convert cooking units (cup, tbsp, tsp) to metric before grouping
+  // Convert cooking units (cup, tbsp, tsp) to metric and fold unit aliases
+  // ("whole" -> "piece") before grouping, so the same item isn't listed twice
   const converted = allIngredients.map((ing) => {
     const { quantity, unit } = convertToMetric(ing.quantity, ing.unit);
-    return { ...ing, quantity, unit };
+    return { ...ing, quantity, unit: normalizeUnit(unit) };
   });
 
   // Group by (normalizedName, unit)

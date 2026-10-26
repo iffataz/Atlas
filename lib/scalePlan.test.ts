@@ -20,9 +20,10 @@ describe("scaleDays", () => {
     expect(monday.dinner.ingredients[0].quantity).toBe(6);
   });
 
-  it("rounds to 2 decimals", () => {
-    const [monday] = scaleDays(days, 3, 1);
-    expect(monday.breakfast.ingredients[0].quantity).toBe(0.33);
+  it("doesn't drift when scaled down and back up", () => {
+    const [monday] = scaleDays(scaleDays(days, 3, 1), 1, 3);
+    expect(monday.breakfast.ingredients[0].quantity).toBeCloseTo(1, 5);
+    expect(monday.lunch.ingredients[0].quantity).toBeCloseTo(2, 5);
   });
 
   it("keeps meal names and does not mutate the input", () => {

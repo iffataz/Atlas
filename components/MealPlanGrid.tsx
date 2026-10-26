@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { IDayPlan, IMeal, IIngredient } from "@/lib/models/MealPlan";
-import { metricHint } from "@/lib/unitConversion";
+import { formatQuantity, metricHint } from "@/lib/unitConversion";
 
 export type MealType = "breakfast" | "lunch" | "dinner";
 
@@ -90,7 +90,7 @@ function IngredientDrawer({
           >
             <span className="text-ink capitalize">{ing.name}</span>
             <span className="text-muted">
-              {ing.quantity} {ing.unit}
+              {formatQuantity(ing.quantity)} {ing.unit}
               {metricHint(ing.quantity, ing.unit) && (
                 <span className="text-muted/60 ml-1">{metricHint(ing.quantity, ing.unit)}</span>
               )}
