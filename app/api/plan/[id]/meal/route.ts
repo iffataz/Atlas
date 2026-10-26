@@ -5,7 +5,7 @@ import MealPlan from "@/lib/models/MealPlan";
 import { regenerateMeal, LlmBusyError, LlmResponseError } from "@/lib/llm";
 import { aggregateIngredients } from "@/lib/aggregateIngredients";
 import { getOwner } from "@/lib/owner";
-import { limitLlmCall } from "@/lib/ratelimit";
+import { clientIp, limitLlmCall } from "@/lib/ratelimit";
 import { MealSchema, MealSwapInputSchema } from "@/lib/schemas";
 import { logError } from "@/lib/log";
 
@@ -23,7 +23,7 @@ export async function POST(
     }
 
     const owner = getOwner(req);
-    const rl = await limitLlmCall(owner.ownerId);
+    const rl = await limitLlmCall(owner.ownerId, clientIp(req));
     if (!rl.success) {
       return NextResponse.json(
         { error: "You've hit the plan-generation limit. Try again later." },

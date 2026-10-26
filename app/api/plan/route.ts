@@ -4,7 +4,7 @@ import MealPlan from "@/lib/models/MealPlan";
 import { generateMealPlan, LlmBusyError, LlmResponseError } from "@/lib/llm";
 import { aggregateIngredients } from "@/lib/aggregateIngredients";
 import { getOwner, attachOwnerCookie } from "@/lib/owner";
-import { limitLlmCall } from "@/lib/ratelimit";
+import { clientIp, limitLlmCall } from "@/lib/ratelimit";
 import { MealPlanDaysSchema, PreferencesInputSchema } from "@/lib/schemas";
 import { logError } from "@/lib/log";
 
@@ -13,7 +13,7 @@ export const runtime = "nodejs";
 export async function POST(req: NextRequest) {
   const owner = getOwner(req);
   try {
-    const rl = await limitLlmCall(owner.ownerId);
+    const rl = await limitLlmCall(owner.ownerId, clientIp(req));
     if (!rl.success) {
       return attachOwnerCookie(
         NextResponse.json(
