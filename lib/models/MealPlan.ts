@@ -35,6 +35,9 @@ export interface IMealPlan extends Document {
   // Absent on plans created before anonymous ownership existed; those stay
   // reachable by direct link but appear in no one's history.
   ownerId?: string;
+  // Random token for the read-only share link; set the first time the owner
+  // shares the plan. Separate from _id because ObjectIds are guessable.
+  shareId?: string;
   createdAt: Date;
 }
 
@@ -72,6 +75,7 @@ const MealPlanSchema = new Schema<IMealPlan>(
     preferences: { type: String, required: true },
     servings: { type: Number, required: true, default: 2 },
     ownerId: { type: String },
+    shareId: { type: String },
     days: [DayPlanSchema],
     shoppingList: [ShoppingItemSchema],
   },
@@ -80,6 +84,8 @@ const MealPlanSchema = new Schema<IMealPlan>(
 
 // Covers the history query: find by owner, newest first.
 MealPlanSchema.index({ ownerId: 1, createdAt: -1 });
+// Looks up shared plans; sparse because most plans are never shared.
+MealPlanSchema.index({ shareId: 1 }, { unique: true, sparse: true });
 
 const MealPlan: Model<IMealPlan> =
   mongoose.models.MealPlan ||

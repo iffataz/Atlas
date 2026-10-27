@@ -12,7 +12,7 @@ npm run test     # Vitest unit tests (lib/**/*.test.ts)
 npm run start    # Start production server
 ```
 
-Unit tests cover the zod schemas, the Mongoose model and plan scaling; verify API/UI changes manually via the browser and `/api/health`. Never run `npm run build` while the dev server is running — both write to `.next` and corrupt the dev cache (use `npx tsc --noEmit` for interim type checks).
+Unit tests cover the zod schemas, the Mongoose model, plan scaling, shopping-list aggregation/rounding and the in-memory rate limiter; CI (`.github/workflows/ci.yml`) runs tsc, lint, tests and build on PRs; verify API/UI changes manually via the browser and `/api/health`. Never run `npm run build` while the dev server is running — both write to `.next` and corrupt the dev cache (use `npx tsc --noEmit` for interim type checks).
 
 ## Architecture
 
@@ -26,10 +26,11 @@ Atlas is a voice-assisted AI meal planning app. The user speaks (or types) dieta
 5. Plan + shopping list are saved to MongoDB (`meal_plans` collection) and returned
 6. `MealPlanGrid` renders meals; `ShoppingList` renders ingredients by category (checked items persist in localStorage per plan)
 7. Refinement sends `{ instruction, servings? }` to `POST /api/plan/[id]`; single-meal swap sends `{ day, mealType }` to `POST /api/plan/[id]/meal`; changing servings sends `{ servings }` to `PATCH /api/plan/[id]`, which rescales quantities arithmetically (`lib/scalePlan.ts`, no LLM call, no rate limit); `DELETE /api/plan/[id]` removes a plan
+8. The open plan is mirrored into the URL (`?plan=<id>`, or `?share=<token>` for a shared plan) so refresh reopens it; `POST /api/plan/[id]/share` creates a random `shareId` once, and `GET /api/share/[shareId]` returns a read-only plan (no `_id`/`ownerId`) that the page renders without refine/swap/servings controls
 
 **Ownership & abuse protection:**
-- Plans are scoped to an anonymous httpOnly cookie (`atlas_uid`, set in `lib/owner.ts`) — no real auth; plans are "unlisted", direct links work for anyone with the id
-- LLM endpoints share a 10-calls/hour/owner rate limit (`lib/ratelimit.ts`): Upstash if `UPSTASH_REDIS_REST_URL`/`UPSTASH_REDIS_REST_TOKEN` are set, otherwise a per-instance in-memory fallback
+- Plans are scoped to an anonymous httpOnly cookie (`atlas_uid`, set in `lib/owner.ts`) — no real auth; owned plans 404 for other browsers, and are shared only through a random `shareId` token (never the guessable ObjectId)
+- LLM endpoints share a 10-calls/hour/owner and 30-calls/hour/IP rate limit (`lib/ratelimit.ts`; the IP budget stops cookie-less clients minting fresh owners): Upstash if `UPSTASH_REDIS_REST_URL`/`UPSTASH_REDIS_REST_TOKEN` are set, otherwise a per-instance in-memory fallback
 - All request bodies and LLM responses are validated with zod schemas in `lib/schemas.ts`; user text is delimiter-wrapped in prompts (`lib/llm.ts`)
 
 **Key constraints:**
@@ -43,7 +44,7 @@ Atlas is a voice-assisted AI meal planning app. The user speaks (or types) dieta
 ## Database
 
 - **Collection:** `meal_plans`
-- **Model:** `lib/models/MealPlan.ts` — preferences, servings, ownerId, days (7 × 3 meals with ingredients), shoppingList; compound index `{ ownerId: 1, createdAt: -1 }`
+- **Model:** `lib/models/MealPlan.ts` — preferences, servings, ownerId, shareId, days (7 × 3 meals with ingredients), shoppingList; compound index `{ ownerId: 1, createdAt: -1 }`, sparse unique `{ shareId: 1 }`
 - **Environment:** `MONGODB_URI` and `GROQ_API_KEY` in `.env.local` (gitignored), also set in Vercel dashboard; optional `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` for durable rate limiting
 
 ## Styling

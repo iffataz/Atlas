@@ -45,7 +45,7 @@ Instead of separate `isLoading` / `isError` booleans, each state renders a diffe
 [`app/api/plan/route.ts`](../app/api/plan/route.ts) is a linear pipeline:
 
 1. **Identify the browser** — [`lib/owner.ts`](../lib/owner.ts#L16). No login: the first visit gets a random UUID in an httpOnly cookie (`atlas_uid`). Plans are tagged with it, which is why history is private per browser.
-2. **Rate limit** — [`lib/ratelimit.ts`](../lib/ratelimit.ts). 10 LLM calls/hour per owner, shared across all LLM routes. Uses Upstash Redis if configured ([L12](../lib/ratelimit.ts#L12)), else an in-memory sliding window ([L37](../lib/ratelimit.ts#L37)) — fine locally, best-effort on Vercel since instances don't share memory.
+2. **Rate limit** — [`lib/ratelimit.ts`](../lib/ratelimit.ts). 10 LLM calls/hour per owner and 30/hour per client IP, shared across all LLM routes. The IP budget exists because the owner cookie alone is bypassable: a client that never sends it gets a fresh owner id every request. Uses Upstash Redis if configured, else an in-memory sliding window — fine locally, best-effort on Vercel since instances don't share memory.
 3. **Validate input** — `PreferencesInputSchema` in [`lib/schemas.ts`](../lib/schemas.ts#L44): trims, requires non-empty, truncates to 500 chars, clamps servings to 1–20.
 4. **Call the LLM** — see §3.
 5. **Validate the LLM output** — `MealPlanDaysSchema` ([L36](../lib/schemas.ts#L36)) demands exactly 7 days × 3 meals.
@@ -75,30 +75,35 @@ Errors are split deliberately: a bad LLM response → **502** ("try again"), any
 
 1. Flatten all 21 meals' ingredients.
 2. Convert cooking units (cup/tbsp/tsp) to metric so they can be summed ([`lib/unitConversion.ts`](../lib/unitConversion.ts)).
-3. Normalize names ([`normalizeName`, L5](../lib/aggregateIngredients.ts#L5)): `"Tomatoes"` → `"tomato"`, via an irregulars table plus a trailing-`s` rule.
+3. Normalize names ([`normalizeName`](../lib/aggregateIngredients.ts)): `"Tomatoes"` → `"tomato"`, via an irregulars table plus a trailing-`s` rule that skips `-ss` and `-us` words (hummus, couscous). Unit aliases fold too (`whole` → `piece`, `cloves` → `clove`).
 4. Group by `name + unit` and sum quantities.
-5. Round for shopping (1500 g → 1.5 kg), then sort by category, then name.
+5. Round for shopping (1500 g → 1.5 kg; under 50 ml/g to whole units so ¼ tsp salt isn't "0 ml"; count units round up), then sort by category, then name.
 
 ## 5. Modifying a plan
 
 | Action | Route | What happens |
 |---|---|---|
-| Voice refine / servings change | `POST /api/plan/[id]` ([route](../app/api/plan/%5Bid%5D/route.ts#L41)) | LLM returns all 7 days; re-validated, list re-aggregated, saved |
+| Voice refine | `POST /api/plan/[id]` ([route](../app/api/plan/%5Bid%5D/route.ts)) | LLM returns all 7 days; re-validated, list re-aggregated, saved |
+| Servings change | `PATCH /api/plan/[id]` | Quantities rescaled arithmetically ([`lib/scalePlan.ts`](../lib/scalePlan.ts)) — no LLM call, no rate limit |
 | Swap one meal | `POST /api/plan/[id]/meal` ([route](../app/api/plan/%5Bid%5D/meal/route.ts)) | LLM returns one meal, patched in via `plan.set("days.2.dinner", …)` ([L74](../app/api/plan/%5Bid%5D/meal/route.ts#L74)) |
 | Delete | `DELETE /api/plan/[id]` ([route](../app/api/plan/%5Bid%5D/route.ts#L107)) | Only if the cookie owns the plan |
 | Load one plan | `GET /api/plan/[id]` | Returns the plan unless another owner has it |
 | History | `GET /api/plan` | Owner's plans, newest first, paginated |
+| Share | `POST /api/plan/[id]/share` | Creates (once) a random `shareId` token for the owner's plan |
+| View shared plan | `GET /api/share/[shareId]` | Read-only plan for anyone with the link; never returns `_id`/`ownerId` |
 
 Details:
-- **Servings change is just a refine.** [`handleServingsChange`, L165](../app/page.tsx#L165) sends a canned instruction ("scale all quantities, keep every meal the same").
-- **Optimistic UI** — the servings dropdown updates immediately and rolls back if the request fails ([L96](../app/page.tsx#L96)).
+- **Servings change is arithmetic, not a refine.** `handleServingsChange` in `app/page.tsx` PATCHes the new count; quantities keep 6 decimals so scaling back and forth doesn't drift, and the UI rounds for display.
+- **Optimistic UI** — the servings dropdown updates immediately and rolls back if the request fails.
+- **URL state** — the open plan is mirrored into the address bar (`?plan=<id>` for your own, `?share=<token>` for a shared one), so a refresh or bookmark reopens it. Shared plans render read-only: no refine, swap, servings or share controls.
+- **Share tokens, not ids** — share links use a random 128-bit `shareId` rather than the ObjectId, because ObjectIds are partly sequential and guessable from a neighbour.
 - **No existence leaks** — someone else's plan returns **404, not 403** ([`ownedBySomeoneElse`, L16](../app/api/plan/%5Bid%5D/route.ts#L16)). Legacy plans without an `ownerId` stay viewable by link but can't be deleted.
 - **Mongoose gotcha** — the swap route calls `.toObject()` before aggregating ([L77](../app/api/plan/%5Bid%5D/meal/route.ts#L77)), because spreading a Mongoose subdocument silently drops its getter-backed fields.
 
 ## 6. Data & infrastructure
 
 - **Model** — [`lib/models/MealPlan.ts`](../lib/models/MealPlan.ts): one document per plan, fully nested (plan → days → meals → ingredients, plus `shoppingList`). Plans are always read and written whole, so no joins.
-- **Index** — `{ ownerId: 1, createdAt: -1 }` ([L80](../lib/models/MealPlan.ts#L80)) matches the history query exactly: "my plans, newest first".
+- **Indexes** — `{ ownerId: 1, createdAt: -1 }` matches the history query exactly ("my plans, newest first"); a sparse unique `{ shareId: 1 }` serves share links.
 - **Connection caching** — [`lib/mongodb.ts`](../lib/mongodb.ts) stores the connection on `global` so warm serverless invocations on Vercel reuse it.
 - **Mongoose routes** must export `runtime = "nodejs"` (Mongoose doesn't run on the Edge runtime).
 - **History UI** — [`components/PlanHistory.tsx`](../components/PlanHistory.tsx#L30) calls `GET /api/plan`; the route fetches `limit + 1` rows to know whether older plans exist.
@@ -108,6 +113,6 @@ Details:
 
 - **Why Groq?** Latency — a full 7-day, 21-meal plan comes back in roughly 10–20 seconds.
 - **What if the AI returns nonsense?** Three layers: schema-constrained output, a retry on unparseable JSON, and zod validation before anything is saved.
-- **Is there auth?** No — anonymous per-browser cookies. Plans are *unlisted*, not private: anyone with the id can view one; only the owner can delete it.
-- **How is abuse limited?** Per-owner rate limiting, 500-char input cap, and prompt-injection delimiters.
-- **What's tested?** The zod schemas (`lib/schemas.test.ts`, run with `npm run test`). API and UI are verified manually.
+- **Is there auth?** No — anonymous per-browser cookies. A plan is only visible to the browser that made it, unless its owner shares it, which creates a read-only link. Legacy plans from before ownership existed stay viewable by id.
+- **How is abuse limited?** Per-owner and per-IP rate limiting, 500-char input cap, and prompt-injection delimiters.
+- **What's tested?** `npm run test` covers the zod schemas, the Mongoose model, LLM error mapping, plan scaling, shopping-list aggregation, unit rounding and the in-memory rate limiter. CI (`.github/workflows/ci.yml`) runs type check, lint, tests and build on every PR. API and UI are verified manually.

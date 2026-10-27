@@ -20,6 +20,17 @@ interface PlanData {
   days: IDayPlan[];
   shoppingList: IShoppingItem[];
   preferences: string;
+  // Opened from someone's share link: view only, no refine/swap/servings.
+  readOnly?: boolean;
+}
+
+type ShareStatus = "idle" | "sharing" | "copied" | "error";
+
+// Mirrors what's on screen into the address bar (?plan= for your own plan,
+// ?share= for a shared one) so a refresh or bookmark reopens it. replaceState
+// rather than pushState: there's no in-app back navigation to support.
+function setUrlQuery(query: string) {
+  window.history.replaceState(null, "", query ? `/?${query}` : "/");
 }
 
 export default function Home() {
@@ -29,6 +40,7 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<Tab>("plan");
   const [error, setError] = useState<string | null>(null);
   const [servings, setServings] = useState(2);
+  const [shareStatus, setShareStatus] = useState<ShareStatus>("idle");
   const planSectionRef = useRef<HTMLElement>(null);
   // A second submit while a request is in flight would double the paid Groq
   // call, so requests are guarded and abortable.
@@ -72,6 +84,7 @@ export default function Home() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to generate plan.");
       setPlan({ planId: data.planId, days: data.days, shoppingList: data.shoppingList, preferences: transcript });
+      setUrlQuery(`plan=${data.planId}`);
       setAppState("ready");
       setVoiceStatus("idle");
     } catch (err: unknown) {
@@ -186,7 +199,9 @@ export default function Home() {
     }
   }
 
-  async function loadPlan(planId: string) {
+  // Shared by history clicks, ?plan= links (your own plans) and ?share=
+  // links (someone else's, read-only).
+  async function openPlan(source: { planId: string } | { shareId: string }) {
     if (inFlightRef.current) return;
     inFlightRef.current = true;
     const controller = new AbortController();
@@ -194,21 +209,28 @@ export default function Home() {
     setAppState("generating");
     setError(null);
 
+    const shared = "shareId" in source;
+    const url = shared ? `/api/share/${source.shareId}` : `/api/plan/${source.planId}`;
     try {
-      const res = await fetch(`/api/plan/${planId}`, { signal: controller.signal });
+      const res = await fetch(url, { signal: controller.signal });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to load plan.");
       setPlan({
-        planId: String(data._id),
+        // Shared plans don't expose their _id; the token keys the
+        // shopping-list checkmarks instead.
+        planId: shared ? `shared-${source.shareId}` : String(data._id),
         days: data.days,
         shoppingList: data.shoppingList,
         preferences: data.preferences,
+        readOnly: shared,
       });
       setServings(data.servings);
+      setUrlQuery(shared ? `share=${source.shareId}` : `plan=${data._id}`);
       setAppState("ready");
     } catch (err: unknown) {
       if (!isAbort(err)) {
         setError(err instanceof Error ? err.message : "Something went wrong.");
+        setUrlQuery("");
         setAppState("idle");
       }
     } finally {
@@ -216,10 +238,49 @@ export default function Home() {
     }
   }
 
+  function loadPlan(planId: string) {
+    void openPlan({ planId });
+  }
+
+  // Reopen whatever plan the URL points at (refresh, bookmark, share link).
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const shareId = params.get("share");
+    const planId = params.get("plan");
+    if (shareId) void openPlan({ shareId });
+    else if (planId) void openPlan({ planId });
+    // Runs once on mount; openPlan only reads refs and setters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function handleShare() {
+    if (!plan || plan.readOnly || shareStatus === "sharing") return;
+    setShareStatus("sharing");
+    try {
+      const res = await fetch(`/api/plan/${plan.planId}/share`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to create share link.");
+      const link = `${window.location.origin}/?share=${data.shareId}`;
+      try {
+        await navigator.clipboard.writeText(link);
+      } catch {
+        // Clipboard blocked (permissions, insecure context) — let the user
+        // copy it by hand instead.
+        window.prompt("Copy this link to share your plan:", link);
+      }
+      setShareStatus("copied");
+      setTimeout(() => setShareStatus("idle"), 2500);
+    } catch {
+      setShareStatus("error");
+      setTimeout(() => setShareStatus("idle"), 2500);
+    }
+  }
+
   function handleReset() {
     // Cancel whatever request is still in flight so a late response can't
     // land after the user has already navigated away from it.
     abortRef.current?.abort();
+    setUrlQuery("");
     setPlan(null);
     setAppState("idle");
     setVoiceStatus("idle");
@@ -290,40 +351,67 @@ export default function Home() {
               <p className="border-2 border-ink bg-white text-muted text-sm px-4 py-2 max-w-sm italic">
                 &ldquo;{plan.preferences}&rdquo;
               </p>
-              <VoiceRecorder
-                onTranscript={handleRefinement}
-                status={voiceStatus}
-                onStatusChange={setVoiceStatus}
-                buttonLabel="Refine your plan"
-                listeningHint="Say what to change, e.g. 'swap Monday dinner for something Thai'."
-                processingLabel="Updating your plan"
-              />
+              {plan.readOnly ? (
+                <p className="text-muted text-xs font-display uppercase tracking-widest">
+                  Shared plan &middot; {servings} {servings === 1 ? "serving" : "servings"}
+                </p>
+              ) : (
+                <>
+                  <VoiceRecorder
+                    onTranscript={handleRefinement}
+                    status={voiceStatus}
+                    onStatusChange={setVoiceStatus}
+                    buttonLabel="Refine your plan"
+                    listeningHint="Say what to change, e.g. 'swap Monday dinner for something Thai'."
+                    processingLabel="Updating your plan"
+                  />
+                  <div className="flex items-center gap-3">
+                    <label
+                      htmlFor="servings-ready"
+                      className="text-muted text-xs font-display uppercase tracking-widest"
+                    >
+                      Servings
+                    </label>
+                    <select
+                      id="servings-ready"
+                      value={servings}
+                      onChange={(e) => handleServingsChange(Number(e.target.value))}
+                      className="border-2 border-ink bg-white text-ink text-sm font-medium uppercase tracking-wide px-3 py-1.5 cursor-pointer focus:outline-none"
+                    >
+                      {[1, 2, 3, 4, 5, 6, 8].map((n) => (
+                        <option key={n} value={n}>
+                          {n}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </>
+              )}
               <div className="flex items-center gap-3">
-                <label
-                  htmlFor="servings-ready"
-                  className="text-muted text-xs font-display uppercase tracking-widest"
+                {!plan.readOnly && (
+                  <button
+                    onClick={handleShare}
+                    disabled={shareStatus === "sharing"}
+                    className="border-2 border-ink bg-white text-ink text-xs font-display uppercase tracking-widest px-4 py-2 shadow-brutal-sm hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-brutal active:translate-x-0.5 active:translate-y-0.5 active:shadow-none disabled:opacity-40 transition-all"
+                  >
+                    {shareStatus === "copied"
+                      ? "Link copied"
+                      : shareStatus === "error"
+                        ? "Couldn't share"
+                        : "Share plan"}
+                  </button>
+                )}
+                <button
+                  onClick={handleReset}
+                  className="border-2 border-ink bg-white text-ink text-xs font-display uppercase tracking-widest px-4 py-2 shadow-brutal-sm hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-brutal active:translate-x-0.5 active:translate-y-0.5 active:shadow-none transition-all"
                 >
-                  Servings
-                </label>
-                <select
-                  id="servings-ready"
-                  value={servings}
-                  onChange={(e) => handleServingsChange(Number(e.target.value))}
-                  className="border-2 border-ink bg-white text-ink text-sm font-medium uppercase tracking-wide px-3 py-1.5 cursor-pointer focus:outline-none"
-                >
-                  {[1, 2, 3, 4, 5, 6, 8].map((n) => (
-                    <option key={n} value={n}>
-                      {n}
-                    </option>
-                  ))}
-                </select>
+                  {plan.readOnly ? "Plan my own week" : "Start over"}
+                </button>
               </div>
-              <button
-                onClick={handleReset}
-                className="border-2 border-ink bg-white text-ink text-xs font-display uppercase tracking-widest px-4 py-2 shadow-brutal-sm hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-brutal active:translate-x-0.5 active:translate-y-0.5 active:shadow-none transition-all"
-              >
-                Start over
-              </button>
+              {/* Announces the copy result to screen readers. */}
+              <p aria-live="polite" className="sr-only">
+                {shareStatus === "copied" ? "Share link copied to clipboard." : ""}
+              </p>
             </div>
           )}
 
@@ -417,7 +505,10 @@ export default function Home() {
             */}
             <div className="lg:grid lg:grid-cols-3 lg:gap-8 lg:items-start">
               <div className={`lg:col-span-2 ${activeTab === "plan" ? "block" : "hidden"} lg:block`}>
-                <MealPlanGrid days={plan.days} onSwapMeal={handleSwapMeal} />
+                <MealPlanGrid
+                  days={plan.days}
+                  onSwapMeal={plan.readOnly ? undefined : handleSwapMeal}
+                />
               </div>
               <div className={`lg:sticky lg:top-8 ${activeTab === "shopping" ? "block" : "hidden"} lg:block`}>
                 <ShoppingList items={plan.shoppingList} planId={plan.planId} />
